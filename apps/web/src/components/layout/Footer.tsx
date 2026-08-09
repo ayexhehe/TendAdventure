@@ -1,17 +1,15 @@
-import footerImage from '../../assets/footer.svg'
+import footerImage from '../../assets/footer2.png'
 
 export function Footer() {
   return (
-    <footer
-      className="relative aspect-5/1 w-full bg-bottom bg-no-repeat"
-      style={{ backgroundImage: `url(${footerImage})`, backgroundSize: '100% auto' }}
-    >
-      <p
-        className="absolute inset-x-0 text-center text-xs text-white/80"
-        style={{ bottom: '55%' }}
-      >
-        &copy; {new Date().getFullYear()} Linggo ng Kabataan sa Guadalupe
+    <footer className="absolute inset-x-0 bottom-0 z-0 flex flex-col items-center">
+      <p className="pb-2 text-center text-xs text-white/80">
+        &copy; {new Date().getFullYear()} Sangguniang Kabataan of Barangay Guadalupe
       </p>
+      <div
+        className="aspect-2000/135 w-full bg-bottom bg-no-repeat"
+        style={{ backgroundImage: `url(${footerImage})`, backgroundSize: '100% auto' }}
+      />
     </footer>
   )
 }

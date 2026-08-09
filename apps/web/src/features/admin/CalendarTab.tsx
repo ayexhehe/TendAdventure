@@ -1,86 +1,88 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addMerchant,
-  deleteMerchant,
-  subscribeToMerchants,
-  updateMerchant,
-  uploadMerchantImage,
-  type MerchantWithId,
-} from '../../lib/merchants'
+  addActivity,
+  deleteActivity,
+  subscribeToActivities,
+  updateActivity,
+  uploadActivityImages,
+  type ActivityWithId,
+} from '../../lib/activities'
 
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
 
-const TINDA_ZONES = [
-  'Zone A - Food',
-  'Zone B - Beverages',
-  'Zone C - Arts & Crafts',
-  'Zone D - Clothing',
-]
-
-function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: string) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [ref, value])
+function formatDate(date: string): string {
+  const parsed = new Date(date)
+  if (Number.isNaN(parsed.getTime())) return date
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
-export function MerchantsTab() {
-  const [merchants, setMerchants] = useState<MerchantWithId[]>([])
+export function CalendarTab() {
+  const [activities, setActivities] = useState<ActivityWithId[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [existingImageURL, setExistingImageURL] = useState<string | null>(null)
-  const [name, setName] = useState('')
+  const [editingCreatedAt, setEditingCreatedAt] = useState<number | null>(null)
+  const [existingImageURLs, setExistingImageURLs] = useState<string[]>([])
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState('')
+  const [committeeHead, setCommitteeHead] = useState('')
+  const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
-  const [product, setProduct] = useState('')
-  const [tindaZone, setTindaZone] = useState('')
-  const [youthRepresentative, setYouthRepresentative] = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
-  const productRef = useRef<HTMLTextAreaElement>(null)
 
-  useAutoGrow(descriptionRef, description)
-  useAutoGrow(productRef, product)
-
-  useEffect(() => subscribeToMerchants(setMerchants), [])
+  useEffect(() => subscribeToActivities(setActivities), [])
 
   useEffect(() => {
-    if (!photoFile) {
-      setPhotoPreview(null)
+    const el = descriptionRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [description])
+
+  useEffect(() => {
+    if (photoFiles.length === 0) {
+      setPhotoPreviews([])
       return
     }
-    const url = URL.createObjectURL(photoFile)
-    setPhotoPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [photoFile])
+    const urls = photoFiles.map((file) => URL.createObjectURL(file))
+    setPhotoPreviews(urls)
+    return () => urls.forEach((url) => URL.revokeObjectURL(url))
+  }, [photoFiles])
 
   const resetForm = () => {
     setEditingId(null)
-    setExistingImageURL(null)
-    setName('')
+    setEditingCreatedAt(null)
+    setExistingImageURLs([])
+    setTitle('')
+    setDate('')
+    setCommitteeHead('')
+    setLocation('')
     setDescription('')
-    setProduct('')
-    setTindaZone('')
-    setYouthRepresentative('')
-    setPhotoFile(null)
+    setPhotoFiles([])
+    if (descriptionRef.current) descriptionRef.current.style.height = 'auto'
   }
 
-  const startEdit = (m: MerchantWithId) => {
-    setEditingId(m.id)
-    setExistingImageURL(m.imageURL)
-    setName(m.name)
-    setDescription(m.description)
-    setProduct(m.product)
-    setTindaZone(m.tindaZone)
-    setYouthRepresentative(m.youthRepresentative)
-    setPhotoFile(null)
+  const startEdit = (a: ActivityWithId) => {
+    setEditingId(a.id)
+    setEditingCreatedAt(a.createdAt)
+    setExistingImageURLs(a.imageURLs)
+    setTitle(a.title)
+    setDate(a.date)
+    setCommitteeHead(a.committeeHead)
+    setLocation(a.location)
+    setDescription(a.description)
+    setPhotoFiles([])
     setError(null)
   }
 
@@ -88,10 +90,10 @@ export function MerchantsTab() {
     setConfirmDeleteId(null)
     setDeletingId(id)
     try {
-      await deleteMerchant(id)
+      await deleteActivity(id)
       if (editingId === id) resetForm()
     } catch {
-      setError('Could not delete that merchant.')
+      setError('Could not delete that activity.')
     } finally {
       setDeletingId(null)
     }
@@ -99,22 +101,24 @@ export function MerchantsTab() {
 
   const handleSubmit = async () => {
     setError(null)
-    if (!name.trim() || !tindaZone.trim()) {
-      setError('Name and Tinda Zone are required.')
+    if (!title.trim() || !date) {
+      setError('Title and date are required.')
       return
     }
     setSubmitting(true)
     try {
-      const imageURL = photoFile ? await uploadMerchantImage(photoFile) : existingImageURL
-      const payload = { name, description, product, tindaZone, youthRepresentative, imageURL }
+      const imageURLs = photoFiles.length
+        ? await uploadActivityImages(photoFiles)
+        : existingImageURLs
+      const payload = { title, date, committeeHead, location, description, imageURLs }
       if (editingId) {
-        await updateMerchant(editingId, payload)
+        await updateActivity(editingId, { ...payload, createdAt: editingCreatedAt ?? Date.now() })
       } else {
-        await addMerchant(payload)
+        await addActivity(payload)
       }
       resetForm()
     } catch {
-      setError(editingId ? 'Could not save that merchant.' : 'Could not add that merchant.')
+      setError(editingId ? 'Could not save that activity.' : 'Could not add that activity.')
     } finally {
       setSubmitting(false)
     }
@@ -123,32 +127,34 @@ export function MerchantsTab() {
   return (
     <div className="flex w-full flex-col gap-6 text-white">
       <section className="overflow-hidden rounded-2xl bg-white/5">
-        <h2 className="px-6 pt-5 text-lg font-semibold">Merchants ({merchants.length})</h2>
+        <h2 className="px-6 pt-5 text-lg font-semibold">Activities ({activities.length})</h2>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-white/10 text-white/60">
               <tr>
-                <th className="px-6 py-3">Name</th>
-                <th className="px-6 py-3">Tinda Zone</th>
-                <th className="px-6 py-3">Youth Representative</th>
+                <th className="px-6 py-3">Date</th>
+                <th className="px-6 py-3">Title</th>
+                <th className="px-6 py-3">Committee Head</th>
+                <th className="px-6 py-3">Location</th>
                 <th className="px-6 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {merchants.map((m) => (
-                <tr key={m.id} className="border-t border-white/10">
-                  <td className="px-6 py-3 font-medium">{m.name}</td>
-                  <td className="px-6 py-3 text-white/70">{m.tindaZone}</td>
-                  <td className="px-6 py-3 text-white/70">{m.youthRepresentative || '—'}</td>
+              {activities.map((a) => (
+                <tr key={a.id} className="border-t border-white/10">
+                  <td className="px-6 py-3 text-white/70">{formatDate(a.date)}</td>
+                  <td className="px-6 py-3 font-medium">{a.title}</td>
+                  <td className="px-6 py-3 text-white/70">{a.committeeHead || '—'}</td>
+                  <td className="px-6 py-3 text-white/70">{a.location || '—'}</td>
                   <td className="px-6 py-3">
-                    {confirmDeleteId === m.id ? (
+                    {confirmDeleteId === a.id ? (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-white/50">Delete?</span>
                         <button
                           type="button"
                           aria-label="Confirm delete"
-                          onClick={() => handleDelete(m.id)}
-                          disabled={deletingId === m.id}
+                          onClick={() => handleDelete(a.id)}
+                          disabled={deletingId === a.id}
                           className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50"
                         >
                           <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -174,14 +180,14 @@ export function MerchantsTab() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => startEdit(m)}
+                          onClick={() => startEdit(a)}
                           className="text-xs font-medium text-white/70 underline hover:text-white"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
-                          onClick={() => setConfirmDeleteId(m.id)}
+                          onClick={() => setConfirmDeleteId(a.id)}
                           className="text-xs font-medium text-red-300 underline hover:text-red-200"
                         >
                           Delete
@@ -191,10 +197,10 @@ export function MerchantsTab() {
                   </td>
                 </tr>
               ))}
-              {merchants.length === 0 && (
+              {activities.length === 0 && (
                 <tr>
-                  <td className="px-6 py-6 text-white/50" colSpan={4}>
-                    No merchants yet.
+                  <td className="px-6 py-6 text-white/50" colSpan={5}>
+                    No activities yet.
                   </td>
                 </tr>
               )}
@@ -206,7 +212,7 @@ export function MerchantsTab() {
       <section className="rounded-2xl bg-white/5 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold tracking-wide text-white/40 uppercase">
-            {editingId ? 'Edit merchant' : 'Add merchant'}
+            {editingId ? 'Edit activity' : 'Add activity'}
           </h2>
           {editingId && (
             <button
@@ -220,53 +226,43 @@ export function MerchantsTab() {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Merchant name</label>
+            <label className={labelClass}>Activity title</label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Aling Nena's Grill"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Opening Program"
               className={inputClass}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Tinda Zone</label>
-            <select
-              value={tindaZone}
-              onChange={(e) => setTindaZone(e.target.value)}
-              className={inputClass}
-            >
-              <option value="" disabled className="text-black">
-                Select a zone
-              </option>
-              {TINDA_ZONES.map((zone) => (
-                <option key={zone} value={zone} className="text-black">
-                  {zone}
-                </option>
-              ))}
-            </select>
+            <label className={labelClass}>Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className={`${inputClass} [color-scheme:dark]`}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Youth representative</label>
+            <label className={labelClass}>Committee head</label>
             <input
               type="text"
-              value={youthRepresentative}
-              onChange={(e) => setYouthRepresentative(e.target.value)}
-              placeholder="Assigned SK youth rep"
+              value={committeeHead}
+              onChange={(e) => setCommitteeHead(e.target.value)}
+              placeholder="Assigned committee head"
               className={inputClass}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Photo</label>
+            <label className={labelClass}>Location</label>
             <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-              className="text-sm text-white/70 file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-white/20"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Barangay Covered Court"
+              className={inputClass}
             />
-            {!photoFile && existingImageURL && (
-              <p className="text-xs text-white/40">Leave blank to keep the current photo.</p>
-            )}
           </div>
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className={labelClass}>Description</label>
@@ -274,29 +270,36 @@ export function MerchantsTab() {
               ref={descriptionRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="what's your story?"
+              placeholder="What's this activity about?"
               rows={3}
               className={`${inputClass} resize-none overflow-hidden`}
             />
           </div>
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className={labelClass}>What are you selling?</label>
-            <textarea
-              ref={productRef}
-              value={product}
-              onChange={(e) => setProduct(e.target.value)}
-              placeholder="Describe your product"
-              rows={2}
-              className={`${inputClass} resize-none overflow-hidden`}
+            <label className={labelClass}>Photos</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setPhotoFiles(Array.from(e.target.files ?? []))}
+              className="text-sm text-white/70 file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-white/20"
             />
+            {photoFiles.length === 0 && existingImageURLs.length > 0 && (
+              <p className="text-xs text-white/40">Leave blank to keep the current photos.</p>
+            )}
+            {(photoPreviews.length > 0 || existingImageURLs.length > 0) && (
+              <div className="mt-1 flex flex-wrap gap-2">
+                {(photoPreviews.length > 0 ? photoPreviews : existingImageURLs).map((url, i) => (
+                  <img
+                    key={url}
+                    src={url}
+                    alt={`Preview ${i + 1}`}
+                    className="h-20 w-20 rounded-lg object-cover"
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          {(photoPreview ?? existingImageURL) && (
-            <img
-              src={photoPreview ?? existingImageURL ?? undefined}
-              alt="Preview"
-              className="h-20 w-20 rounded-lg object-cover"
-            />
-          )}
         </div>
 
         {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
@@ -306,7 +309,7 @@ export function MerchantsTab() {
           disabled={submitting}
           className="mt-4 rounded-md bg-white px-4 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90 disabled:opacity-50"
         >
-          {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Add merchant'}
+          {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Add activity'}
         </button>
       </section>
     </div>
