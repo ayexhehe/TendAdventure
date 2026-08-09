@@ -5,6 +5,7 @@ import { RequireAuth } from '../../components/auth/RequireAuth'
 import { useAuth } from '../../hooks/useAuth'
 import { auth } from '../../lib/firebase'
 import { calculateAge } from '../../lib/age'
+import { getInitials } from '../../lib/initials'
 
 const PROVIDER_LABEL: Record<string, string> = {
   'google.com': 'Google',
@@ -33,13 +34,6 @@ function formatBirthday(birthday: string | null | undefined): string {
   const age = calculateAge(birthday)
   if (age === null) return birthday
   return `${birthday} (${age} yrs old)`
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {

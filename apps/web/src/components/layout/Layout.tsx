@@ -18,7 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="relative z-10 flex min-h-screen flex-1 flex-col">
         <Header />
         <EmailVerificationBanner />
-        <main className="flex flex-1 flex-col items-center justify-center px-6 pb-[9vw]">
+        <main className="flex flex-1 flex-col items-center px-6 pb-[9vw]">
           {children}
         </main>
       </div>

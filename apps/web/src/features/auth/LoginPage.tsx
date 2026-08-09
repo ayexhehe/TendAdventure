@@ -17,10 +17,12 @@ export function LoginPage() {
 
   return (
     <Layout>
-      <div className="w-full max-w-sm rounded-2xl bg-white/5 p-6">
-        {user ? (userDoc === null ? null : <CompleteProfilePrompt />) : (
-          <AuthOptions initialMode={mode} />
-        )}
+      <div className="flex w-full flex-1 items-center justify-center">
+        <div className="w-full max-w-sm rounded-2xl bg-white/5 p-6">
+          {user ? (userDoc === null ? null : <CompleteProfilePrompt />) : (
+            <AuthOptions initialMode={mode} />
+          )}
+        </div>
       </div>
     </Layout>
   )

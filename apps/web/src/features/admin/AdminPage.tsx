@@ -5,8 +5,10 @@ import { MerchantsTab } from './MerchantsTab'
 import { UsersTab } from './UsersTab'
 import { AdminsTab } from './AdminsTab'
 import { CalendarTab } from './CalendarTab'
+import { BannersTab } from './BannersTab'
+import { AboutUsTab } from './AboutUsTab'
 
-const TABS = ['Merchants', 'Calendar', 'Users', 'Admins'] as const
+const TABS = ['Merchants', 'Calendar', 'Banners', 'About Us', 'Users', 'Admins'] as const
 type Tab = (typeof TABS)[number]
 
 export function AdminPage() {
@@ -35,6 +37,8 @@ export function AdminPage() {
 
           {tab === 'Merchants' && <MerchantsTab />}
           {tab === 'Calendar' && <CalendarTab />}
+          {tab === 'Banners' && <BannersTab />}
+          {tab === 'About Us' && <AboutUsTab />}
           {tab === 'Users' && <UsersTab />}
           {tab === 'Admins' && <AdminsTab />}
         </div>

@@ -44,6 +44,20 @@ export interface ActivityDoc {
   createdAt: number
 }
 
+export interface BannerDoc {
+  imageURL: string
+  caption: string
+  order: number
+  linkTo: string | null
+  createdAt: number
+}
+
+export interface AboutDoc {
+  description: string
+  imageURL: string | null
+  updatedAt: number
+}
+
 export interface QuestionDoc {
   merchantId: string
   text: string

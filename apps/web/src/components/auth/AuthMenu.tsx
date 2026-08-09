@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { signOut, sendEmailVerification } from 'firebase/auth'
 import { useAuth } from '../../hooks/useAuth'
 import { auth } from '../../lib/firebase'
+import { getInitials } from '../../lib/initials'
 
 function VerificationBadge({ verified }: { verified: boolean }) {
   return (
@@ -52,9 +53,16 @@ function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-full bg-white px-4 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+        aria-label={user.displayName ?? 'Account menu'}
+        className="relative flex h-10 w-10 items-center justify-center rounded-full"
       >
-        {user.displayName}
+        <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white text-sm font-semibold text-[#113DCB] hover:bg-white/90">
+          {user.photoURL ? (
+            <img src={user.photoURL} alt="" className="h-full w-full object-cover" />
+          ) : (
+            getInitials(user.displayName || '?')
+          )}
+        </div>
         <VerificationBadge verified={verified} />
       </button>
 

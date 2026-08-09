@@ -7,24 +7,16 @@ import {
   uploadActivityImages,
   type ActivityWithId,
 } from '../../lib/activities'
+import { addBanner, subscribeToBanners, type BannerWithId } from '../../lib/banners'
+import { formatDate } from '../../lib/date'
 
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
 
-function formatDate(date: string): string {
-  const parsed = new Date(date)
-  if (Number.isNaN(parsed.getTime())) return date
-  return parsed.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
-
 export function CalendarTab() {
   const [activities, setActivities] = useState<ActivityWithId[]>([])
+  const [banners, setBanners] = useState<BannerWithId[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingCreatedAt, setEditingCreatedAt] = useState<number | null>(null)
   const [existingImageURLs, setExistingImageURLs] = useState<string[]>([])
@@ -38,10 +30,13 @@ export function CalendarTab() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [addingToBannerId, setAddingToBannerId] = useState<string | null>(null)
+  const [addedToBannerId, setAddedToBannerId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => subscribeToActivities(setActivities), [])
+  useEffect(() => subscribeToBanners(setBanners), [])
 
   useEffect(() => {
     const el = descriptionRef.current
@@ -84,6 +79,30 @@ export function CalendarTab() {
     setDescription(a.description)
     setPhotoFiles([])
     setError(null)
+  }
+
+  const handleAddToBanner = async (a: ActivityWithId) => {
+    if (a.imageURLs.length === 0) {
+      setError('This activity needs a photo before it can be added to the banner.')
+      return
+    }
+    setError(null)
+    setAddingToBannerId(a.id)
+    try {
+      const nextOrder = banners.length > 0 ? Math.max(...banners.map((b) => b.order)) + 1 : 0
+      await addBanner({
+        imageURL: a.imageURLs[0],
+        caption: `Upcoming: ${a.title} — ${formatDate(a.date)}`,
+        order: nextOrder,
+        linkTo: `/calendar?activity=${a.id}`,
+      })
+      setAddedToBannerId(a.id)
+      setTimeout(() => setAddedToBannerId((cur) => (cur === a.id ? null : cur)), 2000)
+    } catch {
+      setError('Could not add that activity to the banner.')
+    } finally {
+      setAddingToBannerId(null)
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -184,6 +203,18 @@ export function CalendarTab() {
                           className="text-xs font-medium text-white/70 underline hover:text-white"
                         >
                           Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddToBanner(a)}
+                          disabled={addingToBannerId === a.id}
+                          className="text-xs font-medium text-white/70 underline hover:text-white disabled:opacity-50"
+                        >
+                          {addingToBannerId === a.id
+                            ? 'Adding…'
+                            : addedToBannerId === a.id
+                              ? 'Added!'
+                              : 'Add to banner'}
                         </button>
                         <button
                           type="button"

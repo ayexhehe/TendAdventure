@@ -11,6 +11,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import type { MerchantDoc } from '@tindadventure/shared'
 import { db, storage } from './firebase'
+import { compressImage } from './image'
 
 export interface MerchantWithId extends MerchantDoc {
   id: string
@@ -28,9 +29,10 @@ export function subscribeToMerchants(onChange: (merchants: MerchantWithId[]) => 
 export async function uploadMerchantImage(file: File): Promise<string> {
   if (!storage) throw new Error('Storage is not configured')
 
-  const path = `merchants/${Date.now()}-${file.name}`
+  const compressed = await compressImage(file)
+  const path = `merchants/${Date.now()}-${compressed.name}`
   const fileRef = ref(storage, path)
-  await uploadBytes(fileRef, file)
+  await uploadBytes(fileRef, compressed)
   return getDownloadURL(fileRef)
 }
 

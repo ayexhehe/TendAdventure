@@ -11,6 +11,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import type { ActivityDoc } from '@tindadventure/shared'
 import { db, storage } from './firebase'
+import { compressImage } from './image'
 
 export interface ActivityWithId extends ActivityDoc {
   id: string
@@ -31,9 +32,10 @@ export async function uploadActivityImages(files: File[]): Promise<string[]> {
 
   return Promise.all(
     files.map(async (file) => {
-      const path = `activities/${Date.now()}-${file.name}`
+      const compressed = await compressImage(file)
+      const path = `activities/${Date.now()}-${compressed.name}`
       const fileRef = ref(storageInstance, path)
-      await uploadBytes(fileRef, file)
+      await uploadBytes(fileRef, compressed)
       return getDownloadURL(fileRef)
     }),
   )
