@@ -25,6 +25,12 @@ export async function ensureUserDocument(user: User) {
       provider: providerId === 'google.com' || providerId === 'password' ? providerId : 'unknown',
       createdAt: Date.now(),
       role: 'player',
+      fullName: '',
+      sitio: '',
+      birthday: null,
+      gender: null,
+      genderSelfDescribe: null,
+      consentAcceptedAt: null,
       quizBowl: { hasWon: false, wonAt: null },
       tasked: { ticketAwarded: false, completedAt: null },
     }

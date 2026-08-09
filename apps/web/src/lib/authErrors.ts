@@ -13,8 +13,11 @@ export function friendlyAuthError(error: unknown): string {
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
         return 'No account found with that email and password.'
+      case 'auth/operation-not-allowed':
+        return 'Email/password sign-in isn’t enabled for this project yet.'
       default:
-        return 'Something went wrong — please try again.'
+        console.error('Unhandled Firebase auth error:', error.code, error.message)
+        return `Something went wrong (${error.code}) — please try again.`
     }
   }
   return 'Something went wrong — please try again.'

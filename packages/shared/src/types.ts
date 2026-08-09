@@ -1,5 +1,7 @@
 export type UserRole = 'player' | 'admin'
 
+export type Gender = 'male' | 'female' | 'nonbinary' | 'self-describe' | 'prefer-not-to-say'
+
 export interface UserDoc {
   displayName: string
   email: string
@@ -7,6 +9,12 @@ export interface UserDoc {
   provider: 'google.com' | 'password' | 'unknown'
   createdAt: number
   role: UserRole
+  fullName: string
+  sitio: string
+  birthday: string | null
+  gender: Gender | null
+  genderSelfDescribe: string | null
+  consentAcceptedAt: number | null
   quizBowl: {
     hasWon: boolean
     wonAt: number | null
@@ -20,11 +28,34 @@ export interface UserDoc {
 export interface MerchantDoc {
   name: string
   description: string
-  boothLocation: string
+  product: string
+  tindaZone: string
+  youthRepresentative: string
   imageURL: string | null
-  active: boolean
-  ticketsAvailable: number
-  ticketsAwarded: number
+}
+
+export interface ActivityDoc {
+  title: string
+  date: string
+  committeeHead: string
+  location: string
+  description: string
+  imageURLs: string[]
+  createdAt: number
+}
+
+export interface BannerDoc {
+  imageURL: string
+  caption: string
+  order: number
+  linkTo: string | null
+  createdAt: number
+}
+
+export interface AboutDoc {
+  description: string
+  imageURL: string | null
+  updatedAt: number
 }
 
 export interface QuestionDoc {

@@ -1,55 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addMerchant,
-  deleteMerchant,
-  subscribeToMerchants,
-  updateMerchant,
-  uploadMerchantImage,
-  type MerchantWithId,
-} from '../../lib/merchants'
+  addBanner,
+  deleteBanner,
+  subscribeToBanners,
+  updateBanner,
+  uploadBannerImage,
+  type BannerWithId,
+} from '../../lib/banners'
 
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
 
-const TINDA_ZONES = [
-  'Zone A - Food',
-  'Zone B - Beverages',
-  'Zone C - Arts & Crafts',
-  'Zone D - Clothing',
-]
-
-function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: string) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [ref, value])
-}
-
-export function MerchantsTab() {
-  const [merchants, setMerchants] = useState<MerchantWithId[]>([])
+export function BannersTab() {
+  const [banners, setBanners] = useState<BannerWithId[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingCreatedAt, setEditingCreatedAt] = useState<number | null>(null)
   const [existingImageURL, setExistingImageURL] = useState<string | null>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [product, setProduct] = useState('')
-  const [tindaZone, setTindaZone] = useState('')
-  const [youthRepresentative, setYouthRepresentative] = useState('')
+  const [caption, setCaption] = useState('')
+  const [order, setOrder] = useState('')
+  const [linkTo, setLinkTo] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const descriptionRef = useRef<HTMLTextAreaElement>(null)
-  const productRef = useRef<HTMLTextAreaElement>(null)
+  const seededOrder = useRef(false)
 
-  useAutoGrow(descriptionRef, description)
-  useAutoGrow(productRef, product)
+  useEffect(() => subscribeToBanners(setBanners), [])
 
-  useEffect(() => subscribeToMerchants(setMerchants), [])
+  useEffect(() => {
+    if (seededOrder.current || editingId || banners.length === 0) return
+    seededOrder.current = true
+    setOrder(String(Math.max(...banners.map((b) => b.order)) + 1))
+  }, [banners, editingId])
 
   useEffect(() => {
     if (!photoFile) {
@@ -63,23 +48,21 @@ export function MerchantsTab() {
 
   const resetForm = () => {
     setEditingId(null)
+    setEditingCreatedAt(null)
     setExistingImageURL(null)
-    setName('')
-    setDescription('')
-    setProduct('')
-    setTindaZone('')
-    setYouthRepresentative('')
+    setCaption('')
+    setOrder(banners.length > 0 ? String(Math.max(...banners.map((b) => b.order)) + 1) : '')
+    setLinkTo('')
     setPhotoFile(null)
   }
 
-  const startEdit = (m: MerchantWithId) => {
-    setEditingId(m.id)
-    setExistingImageURL(m.imageURL)
-    setName(m.name)
-    setDescription(m.description)
-    setProduct(m.product)
-    setTindaZone(m.tindaZone)
-    setYouthRepresentative(m.youthRepresentative)
+  const startEdit = (b: BannerWithId) => {
+    setEditingId(b.id)
+    setEditingCreatedAt(b.createdAt)
+    setExistingImageURL(b.imageURL)
+    setCaption(b.caption)
+    setOrder(String(b.order))
+    setLinkTo(b.linkTo ?? '')
     setPhotoFile(null)
     setError(null)
   }
@@ -88,10 +71,10 @@ export function MerchantsTab() {
     setConfirmDeleteId(null)
     setDeletingId(id)
     try {
-      await deleteMerchant(id)
+      await deleteBanner(id)
       if (editingId === id) resetForm()
     } catch {
-      setError('Could not delete that merchant.')
+      setError('Could not delete that banner.')
     } finally {
       setDeletingId(null)
     }
@@ -99,22 +82,32 @@ export function MerchantsTab() {
 
   const handleSubmit = async () => {
     setError(null)
-    if (!name.trim() || !tindaZone.trim()) {
-      setError('Name and Tinda Zone are required.')
+    if (!editingId && !photoFile) {
+      setError('An image is required.')
+      return
+    }
+    const orderNum = Number(order)
+    if (!Number.isFinite(orderNum)) {
+      setError('Order must be a number.')
       return
     }
     setSubmitting(true)
     try {
-      const imageURL = photoFile ? await uploadMerchantImage(photoFile) : existingImageURL
-      const payload = { name, description, product, tindaZone, youthRepresentative, imageURL }
+      const imageURL = photoFile ? await uploadBannerImage(photoFile) : existingImageURL
+      if (!imageURL) {
+        setError('An image is required.')
+        setSubmitting(false)
+        return
+      }
+      const payload = { imageURL, caption, order: orderNum, linkTo: linkTo.trim() || null }
       if (editingId) {
-        await updateMerchant(editingId, payload)
+        await updateBanner(editingId, { ...payload, createdAt: editingCreatedAt ?? Date.now() })
       } else {
-        await addMerchant(payload)
+        await addBanner(payload)
       }
       resetForm()
     } catch {
-      setError(editingId ? 'Could not save that merchant.' : 'Could not add that merchant.')
+      setError(editingId ? 'Could not save that banner.' : 'Could not add that banner.')
     } finally {
       setSubmitting(false)
     }
@@ -123,32 +116,30 @@ export function MerchantsTab() {
   return (
     <div className="flex w-full flex-col gap-6 text-white">
       <section className="overflow-hidden rounded-2xl bg-white/5">
-        <h2 className="px-6 pt-5 text-lg font-semibold">Merchants ({merchants.length})</h2>
+        <h2 className="px-6 pt-5 text-lg font-semibold">Banners ({banners.length})</h2>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-white/10 text-white/60">
               <tr>
-                <th className="px-6 py-3">Name</th>
-                <th className="px-6 py-3">Tinda Zone</th>
-                <th className="px-6 py-3">Youth Representative</th>
+                <th className="px-6 py-3">Order</th>
+                <th className="px-6 py-3">Caption</th>
                 <th className="px-6 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {merchants.map((m) => (
-                <tr key={m.id} className="border-t border-white/10">
-                  <td className="px-6 py-3 font-medium">{m.name}</td>
-                  <td className="px-6 py-3 text-white/70">{m.tindaZone}</td>
-                  <td className="px-6 py-3 text-white/70">{m.youthRepresentative || '—'}</td>
+              {banners.map((b) => (
+                <tr key={b.id} className="border-t border-white/10">
+                  <td className="px-6 py-3 font-medium">{b.order}</td>
+                  <td className="px-6 py-3 text-white/70">{b.caption || '—'}</td>
                   <td className="px-6 py-3">
-                    {confirmDeleteId === m.id ? (
+                    {confirmDeleteId === b.id ? (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-white/50">Delete?</span>
                         <button
                           type="button"
                           aria-label="Confirm delete"
-                          onClick={() => handleDelete(m.id)}
-                          disabled={deletingId === m.id}
+                          onClick={() => handleDelete(b.id)}
+                          disabled={deletingId === b.id}
                           className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50"
                         >
                           <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -174,14 +165,14 @@ export function MerchantsTab() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => startEdit(m)}
+                          onClick={() => startEdit(b)}
                           className="text-xs font-medium text-white/70 underline hover:text-white"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
-                          onClick={() => setConfirmDeleteId(m.id)}
+                          onClick={() => setConfirmDeleteId(b.id)}
                           className="text-xs font-medium text-red-300 underline hover:text-red-200"
                         >
                           Delete
@@ -191,10 +182,10 @@ export function MerchantsTab() {
                   </td>
                 </tr>
               ))}
-              {merchants.length === 0 && (
+              {banners.length === 0 && (
                 <tr>
-                  <td className="px-6 py-6 text-white/50" colSpan={4}>
-                    No merchants yet.
+                  <td className="px-6 py-6 text-white/50" colSpan={3}>
+                    No banners yet.
                   </td>
                 </tr>
               )}
@@ -206,7 +197,7 @@ export function MerchantsTab() {
       <section className="rounded-2xl bg-white/5 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold tracking-wide text-white/40 uppercase">
-            {editingId ? 'Edit merchant' : 'Add merchant'}
+            {editingId ? 'Edit banner' : 'Add banner'}
           </h2>
           {editingId && (
             <button
@@ -220,44 +211,36 @@ export function MerchantsTab() {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Merchant name</label>
+            <label className={labelClass}>Caption</label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Aling Nena's Grill"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="e.g. Grand Opening this Saturday!"
               className={inputClass}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Tinda Zone</label>
-            <select
-              value={tindaZone}
-              onChange={(e) => setTindaZone(e.target.value)}
-              className={inputClass}
-            >
-              <option value="" disabled className="text-black">
-                Select a zone
-              </option>
-              {TINDA_ZONES.map((zone) => (
-                <option key={zone} value={zone} className="text-black">
-                  {zone}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Youth representative</label>
+            <label className={labelClass}>Order</label>
             <input
-              type="text"
-              value={youthRepresentative}
-              onChange={(e) => setYouthRepresentative(e.target.value)}
-              placeholder="Assigned SK youth rep"
+              type="number"
+              value={order}
+              onChange={(e) => setOrder(e.target.value)}
               className={inputClass}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Photo</label>
+            <label className={labelClass}>Link to (optional)</label>
+            <input
+              type="text"
+              value={linkTo}
+              onChange={(e) => setLinkTo(e.target.value)}
+              placeholder="e.g. /about or /merchants"
+              className={inputClass}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <label className={labelClass}>Image</label>
             <input
               type="file"
               accept="image/*"
@@ -267,28 +250,6 @@ export function MerchantsTab() {
             {!photoFile && existingImageURL && (
               <p className="text-xs text-white/40">Leave blank to keep the current photo.</p>
             )}
-          </div>
-          <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className={labelClass}>Description</label>
-            <textarea
-              ref={descriptionRef}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="what's your story?"
-              rows={3}
-              className={`${inputClass} resize-none overflow-hidden`}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className={labelClass}>What are you selling?</label>
-            <textarea
-              ref={productRef}
-              value={product}
-              onChange={(e) => setProduct(e.target.value)}
-              placeholder="Describe your product"
-              rows={2}
-              className={`${inputClass} resize-none overflow-hidden`}
-            />
           </div>
           {(photoPreview ?? existingImageURL) && (
             <img
@@ -306,7 +267,7 @@ export function MerchantsTab() {
           disabled={submitting}
           className="mt-4 rounded-md bg-white px-4 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90 disabled:opacity-50"
         >
-          {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Add merchant'}
+          {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Add banner'}
         </button>
       </section>
     </div>

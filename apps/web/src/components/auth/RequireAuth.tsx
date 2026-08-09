@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { AuthOptions } from './AuthOptions'
+import { CompleteProfilePrompt } from './CompleteProfilePrompt'
+import { isProfileComplete } from '../../lib/profileCompletion'
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
+  const { user, userDoc, loading } = useAuth()
 
   if (loading) return null
 
@@ -14,6 +16,12 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         <AuthOptions />
       </div>
     )
+  }
+
+  if (userDoc === null) return null
+
+  if (!isProfileComplete(user, userDoc)) {
+    return <CompleteProfilePrompt />
   }
 
   return <>{children}</>
