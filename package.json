@@ -6,5 +6,8 @@
     "apps/*",
     "functions",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "firebase": "^12.17.1"
+  }
 }

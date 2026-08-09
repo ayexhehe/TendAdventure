@@ -1,9 +1,13 @@
 import { Layout } from '../../components/layout/Layout'
+import { RequireAuth } from '../../components/auth/RequireAuth'
+import { QuizBowlGame } from './QuizBowlGame'
 
 export function QuizBowlPage() {
   return (
     <Layout>
-      <p className="text-lg text-white">Quiz Bowl — coming soon</p>
+      <RequireAuth>
+        <QuizBowlGame />
+      </RequireAuth>
     </Layout>
   )
 }

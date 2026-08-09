@@ -4,6 +4,7 @@ export interface UserDoc {
   displayName: string
   email: string
   photoURL: string | null
+  provider: 'google.com' | 'password' | 'unknown'
   createdAt: number
   role: UserRole
   quizBowl: {

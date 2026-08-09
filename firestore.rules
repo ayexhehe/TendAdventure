@@ -2,6 +2,55 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isAdminEmail() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower()
+           in get(/databases/$(database)/documents/config/adminEmails).data.emails;
+    }
+
+    match /config/adminEmails {
+      allow read, write: if isAdminEmail();
+    }
+
+    match /merchants/{merchantId} {
+      allow read: if request.auth != null;
+      allow write: if isAdminEmail();
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if isAdminEmail();
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.role == 'player'
+        && request.resource.data.quizBowl.hasWon == false
+        && request.resource.data.quizBowl.wonAt == null
+        && request.resource.data.tasked.ticketAwarded == false
+        && request.resource.data.tasked.completedAt == null;
+
+      // Players may update their own profile fields, but not the
+      // role/game-state fields — those only ever change via the
+      // self-promotion rule below, or a manual admin edit.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.quizBowl == resource.data.quizBowl
+        && request.resource.data.tasked == resource.data.tasked;
+
+      // Self-promotion: on sign-in, a client whose email is on the
+      // admin allowlist may sync its own role to 'admin'. The allowlist
+      // itself is never exposed to the client for this check — the
+      // comparison happens entirely inside isAdminEmail() at write time.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+        && request.resource.data.role == 'admin'
+        && isAdminEmail();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

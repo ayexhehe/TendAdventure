@@ -1,7 +1,5 @@
 {
   "projects": {
-    "staging": "tindadventure-staging",
-    "prod": "tindadventure-prod",
-    "default": "tindadventure-staging"
+    "default": "tindadventure"
   }
 }

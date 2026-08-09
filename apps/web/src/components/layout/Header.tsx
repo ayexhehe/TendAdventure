@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { GoogleSignInButton } from '../auth/GoogleSignInButton'
+import { AuthMenu } from '../auth/AuthMenu'
 
 export function Header() {
   return (
@@ -7,7 +7,7 @@ export function Header() {
       <Link to="/" className="text-sm font-semibold tracking-wide text-white">
         TindAdventure
       </Link>
-      <GoogleSignInButton />
+      <AuthMenu />
     </header>
   )
 }

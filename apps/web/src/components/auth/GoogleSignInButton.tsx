@@ -1,20 +1,20 @@
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '../../lib/firebase'
-import { useAuth } from '../../hooks/useAuth'
 
 const provider = new GoogleAuthProvider()
 
 export function GoogleSignInButton() {
-  const { user } = useAuth()
+  const firebaseAuth = auth
 
-  if (user) {
+  if (!firebaseAuth) {
     return (
       <button
         type="button"
-        onClick={() => signOut(auth)}
-        className="rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+        disabled
+        title="Firebase is not configured yet"
+        className="cursor-not-allowed rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white/50"
       >
-        Sign out ({user.displayName})
+        Sign in with Google
       </button>
     )
   }
@@ -22,7 +22,7 @@ export function GoogleSignInButton() {
   return (
     <button
       type="button"
-      onClick={() => signInWithPopup(auth, provider)}
+      onClick={() => signInWithPopup(firebaseAuth, provider)}
       className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
     >
       Sign in with Google
