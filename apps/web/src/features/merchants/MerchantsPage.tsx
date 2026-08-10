@@ -4,7 +4,10 @@ import { Layout } from '../../components/layout/Layout'
 import { MerchantCard } from '../../components/merchants/MerchantCard'
 import { CardSkeletonGrid, SpotlightSkeleton } from '../../components/skeleton/Skeletons'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
+import { Pagination } from '../../components/Pagination'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
+
+const PAGE_SIZE = 3
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -51,6 +54,7 @@ export function MerchantsPage() {
   const [merchants, setMerchants] = useState<MerchantWithId[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
   const [searchParams] = useSearchParams()
 
   useEffect(
@@ -71,6 +75,15 @@ export function MerchantsPage() {
 
   const selected = merchants.find((m) => m.id === selectedId) ?? null
   const others = selected ? merchants.filter((m) => m.id !== selectedId) : merchants
+  const pageCount = Math.max(1, Math.ceil(others.length / PAGE_SIZE))
+
+  useEffect(() => {
+    setPage(0)
+  }, [selectedId])
+
+  useEffect(() => {
+    if (page >= pageCount) setPage(0)
+  }, [page, pageCount])
 
   const selectMerchant = (id: string) => {
     setSelectedId(id)
@@ -99,10 +112,20 @@ export function MerchantsPage() {
               <div className="flex flex-col gap-4">
                 {selected && <h2 className="text-lg font-semibold text-white">More Merchants</h2>}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-                  {others.map((m) => (
-                    <MerchantCard key={m.id} merchant={m} onClick={() => selectMerchant(m.id)} />
-                  ))}
+                  {others.map((m, i) => {
+                    const isCurrentPage = Math.floor(i / PAGE_SIZE) === page
+                    return (
+                      <div key={m.id} className={isCurrentPage ? '' : 'hidden'}>
+                        <MerchantCard
+                          merchant={m}
+                          onClick={() => selectMerchant(m.id)}
+                          priority={isCurrentPage ? 'high' : 'low'}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
+                <Pagination page={page} pageCount={pageCount} onChange={setPage} />
               </div>
             )}
           </>

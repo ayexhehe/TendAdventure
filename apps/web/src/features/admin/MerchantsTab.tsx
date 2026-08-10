@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { MerchantQuestion } from '@tindadventure/shared'
 import {
   addMerchant,
   deleteMerchant,
@@ -7,10 +8,17 @@ import {
   uploadMerchantImage,
   type MerchantWithId,
 } from '../../lib/merchants'
+import { Pagination } from '../../components/Pagination'
 
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
+const PAGE_SIZE = 8
+const MAX_QUESTIONS = 5
+
+function blankQuestion(): MerchantQuestion {
+  return { question: '', correctAnswer: '', dummyAnswers: ['', '', ''] }
+}
 
 const TINDA_ZONES = [
   'Zone A - Food',
@@ -30,6 +38,7 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
 
 export function MerchantsTab() {
   const [merchants, setMerchants] = useState<MerchantWithId[]>([])
+  const [page, setPage] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [existingImageURL, setExistingImageURL] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -39,6 +48,8 @@ export function MerchantsTab() {
   const [youthRepresentative, setYouthRepresentative] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [questions, setQuestions] = useState<MerchantQuestion[]>([])
+  const [questionsOpen, setQuestionsOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -50,6 +61,12 @@ export function MerchantsTab() {
   useAutoGrow(productRef, product)
 
   useEffect(() => subscribeToMerchants(setMerchants), [])
+
+  const pageCount = Math.max(1, Math.ceil(merchants.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (page >= pageCount) setPage(0)
+  }, [page, pageCount])
 
   useEffect(() => {
     if (!photoFile) {
@@ -70,6 +87,8 @@ export function MerchantsTab() {
     setTindaZone('')
     setYouthRepresentative('')
     setPhotoFile(null)
+    setQuestions([])
+    setQuestionsOpen(false)
   }
 
   const startEdit = (m: MerchantWithId) => {
@@ -81,7 +100,37 @@ export function MerchantsTab() {
     setTindaZone(m.tindaZone)
     setYouthRepresentative(m.youthRepresentative)
     setPhotoFile(null)
+    setQuestions(m.questions ?? [])
+    setQuestionsOpen((m.questions ?? []).length > 0)
     setError(null)
+  }
+
+  const addQuestion = () => {
+    if (questions.length >= MAX_QUESTIONS) return
+    setQuestions((qs) => [...qs, blankQuestion()])
+    setQuestionsOpen(true)
+  }
+
+  const removeQuestion = (index: number) => {
+    setQuestions((qs) => qs.filter((_, i) => i !== index))
+  }
+
+  const updateQuestionText = (index: number, question: string) => {
+    setQuestions((qs) => qs.map((q, i) => (i === index ? { ...q, question } : q)))
+  }
+
+  const updateCorrectAnswer = (index: number, correctAnswer: string) => {
+    setQuestions((qs) => qs.map((q, i) => (i === index ? { ...q, correctAnswer } : q)))
+  }
+
+  const updateDummyAnswer = (qIndex: number, dIndex: number, value: string) => {
+    setQuestions((qs) =>
+      qs.map((q, i) =>
+        i === qIndex
+          ? { ...q, dummyAnswers: q.dummyAnswers.map((d, j) => (j === dIndex ? value : d)) }
+          : q,
+      ),
+    )
   }
 
   const handleDelete = async (id: string) => {
@@ -106,7 +155,15 @@ export function MerchantsTab() {
     setSubmitting(true)
     try {
       const imageURL = photoFile ? await uploadMerchantImage(photoFile) : existingImageURL
-      const payload = { name, description, product, tindaZone, youthRepresentative, imageURL }
+      const payload = {
+        name,
+        description,
+        product,
+        tindaZone,
+        youthRepresentative,
+        imageURL,
+        questions,
+      }
       if (editingId) {
         await updateMerchant(editingId, payload)
       } else {
@@ -135,7 +192,7 @@ export function MerchantsTab() {
               </tr>
             </thead>
             <tbody>
-              {merchants.map((m) => (
+              {merchants.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE).map((m) => (
                 <tr key={m.id} className="border-t border-white/10">
                   <td className="px-6 py-3 font-medium">{m.name}</td>
                   <td className="px-6 py-3 text-white/70">{m.tindaZone}</td>
@@ -200,6 +257,9 @@ export function MerchantsTab() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-white/10 px-6 py-3">
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
         </div>
       </section>
 
@@ -297,6 +357,89 @@ export function MerchantsTab() {
               className="h-20 w-20 rounded-lg object-cover"
             />
           )}
+
+          <div className="flex flex-col gap-3 rounded-lg bg-white/5 p-3.5 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setQuestionsOpen((o) => !o)}
+                className="flex items-center gap-2 text-sm font-medium text-white"
+              >
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className={`h-4 w-4 text-white/50 transition-transform ${questionsOpen ? 'rotate-90' : ''}`}
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M7.21 14.77a.75.75 0 0 1 0-1.06L10.94 10 7.21 6.29a.75.75 0 1 1 1.06-1.06l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Questionnaire ({questions.length}/{MAX_QUESTIONS})
+              </button>
+              <button
+                type="button"
+                onClick={addQuestion}
+                disabled={questions.length >= MAX_QUESTIONS}
+                aria-label="Add question"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:pointer-events-none disabled:opacity-30"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+                </svg>
+              </button>
+            </div>
+
+            {questionsOpen && (
+              <div className="flex flex-col gap-3">
+                {questions.map((q, i) => (
+                  <div key={i} className="flex flex-col gap-2 rounded-md bg-white/5 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-white/50">Question {i + 1}</span>
+                      <button
+                        type="button"
+                        aria-label="Remove question"
+                        onClick={() => removeQuestion(i)}
+                        className="text-xs font-medium text-red-300 underline hover:text-red-200"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={q.question}
+                      onChange={(e) => updateQuestionText(i, e.target.value)}
+                      placeholder="Question"
+                      className={inputClass}
+                    />
+                    <input
+                      type="text"
+                      value={q.correctAnswer}
+                      onChange={(e) => updateCorrectAnswer(i, e.target.value)}
+                      placeholder="Correct answer"
+                      className={`${inputClass} ring-1 ring-emerald-500/40`}
+                    />
+                    {q.dummyAnswers.map((d, di) => (
+                      <input
+                        key={di}
+                        type="text"
+                        value={d}
+                        onChange={(e) => updateDummyAnswer(i, di, e.target.value)}
+                        placeholder={`Dummy answer ${di + 1}`}
+                        className={inputClass}
+                      />
+                    ))}
+                  </div>
+                ))}
+                {questions.length === 0 && (
+                  <p className="text-xs text-white/40">
+                    No questions yet — click the + button to add one.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {error && <p className="mt-3 text-sm text-red-300">{error}</p>}

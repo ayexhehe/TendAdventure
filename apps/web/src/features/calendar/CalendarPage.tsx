@@ -4,8 +4,11 @@ import { Layout } from '../../components/layout/Layout'
 import { ActivityCard } from '../../components/calendar/ActivityCard'
 import { CardSkeletonGrid, SpotlightSkeleton } from '../../components/skeleton/Skeletons'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
+import { Pagination } from '../../components/Pagination'
 import { subscribeToActivities, type ActivityWithId } from '../../lib/activities'
 import { formatDate } from '../../lib/date'
+
+const PAGE_SIZE = 3
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -63,6 +66,8 @@ export function CalendarPage() {
   const [activities, setActivities] = useState<ActivityWithId[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [upcomingPage, setUpcomingPage] = useState(0)
+  const [pastPage, setPastPage] = useState(0)
   const [searchParams] = useSearchParams()
 
   useEffect(
@@ -87,6 +92,21 @@ export function CalendarPage() {
   const today = todayISO()
   const upcoming = rest.filter((a) => a.date >= today)
   const past = rest.filter((a) => a.date < today).slice().reverse()
+  const upcomingPageCount = Math.max(1, Math.ceil(upcoming.length / PAGE_SIZE))
+  const pastPageCount = Math.max(1, Math.ceil(past.length / PAGE_SIZE))
+
+  useEffect(() => {
+    setUpcomingPage(0)
+    setPastPage(0)
+  }, [selectedId])
+
+  useEffect(() => {
+    if (upcomingPage >= upcomingPageCount) setUpcomingPage(0)
+  }, [upcomingPage, upcomingPageCount])
+
+  useEffect(() => {
+    if (pastPage >= pastPageCount) setPastPage(0)
+  }, [pastPage, pastPageCount])
 
   const selectActivity = (id: string) => {
     setSelectedId(id)
@@ -115,10 +135,24 @@ export function CalendarPage() {
               <div className="flex flex-col gap-4">
                 <h2 className="text-lg font-semibold text-white">Upcoming</h2>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-                  {upcoming.map((a) => (
-                    <ActivityCard key={a.id} activity={a} onClick={() => selectActivity(a.id)} />
-                  ))}
+                  {upcoming.map((a, i) => {
+                    const isCurrentPage = Math.floor(i / PAGE_SIZE) === upcomingPage
+                    return (
+                      <div key={a.id} className={isCurrentPage ? '' : 'hidden'}>
+                        <ActivityCard
+                          activity={a}
+                          onClick={() => selectActivity(a.id)}
+                          priority={isCurrentPage ? 'high' : 'low'}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
+                <Pagination
+                  page={upcomingPage}
+                  pageCount={upcomingPageCount}
+                  onChange={setUpcomingPage}
+                />
               </div>
             )}
 
@@ -126,10 +160,20 @@ export function CalendarPage() {
               <div className="flex flex-col gap-4">
                 <h2 className="text-lg font-semibold text-white/50">Past Activities</h2>
                 <div className="grid grid-cols-1 gap-4 opacity-60 sm:grid-cols-2 md:grid-cols-3">
-                  {past.map((a) => (
-                    <ActivityCard key={a.id} activity={a} onClick={() => selectActivity(a.id)} />
-                  ))}
+                  {past.map((a, i) => {
+                    const isCurrentPage = Math.floor(i / PAGE_SIZE) === pastPage
+                    return (
+                      <div key={a.id} className={isCurrentPage ? '' : 'hidden'}>
+                        <ActivityCard
+                          activity={a}
+                          onClick={() => selectActivity(a.id)}
+                          priority={isCurrentPage ? 'high' : 'low'}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
+                <Pagination page={pastPage} pageCount={pastPageCount} onChange={setPastPage} />
               </div>
             )}
           </>

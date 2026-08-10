@@ -25,6 +25,12 @@ export interface UserDoc {
   }
 }
 
+export interface MerchantQuestion {
+  question: string
+  correctAnswer: string
+  dummyAnswers: string[]
+}
+
 export interface MerchantDoc {
   name: string
   description: string
@@ -32,6 +38,7 @@ export interface MerchantDoc {
   tindaZone: string
   youthRepresentative: string
   imageURL: string | null
+  questions: MerchantQuestion[]
 }
 
 export interface ActivityDoc {
@@ -58,30 +65,31 @@ export interface AboutDoc {
   updatedAt: number
 }
 
-export interface QuestionDoc {
-  merchantId: string
-  text: string
-}
-
-export interface QuestionAnswerDoc {
-  correctAnswer: string
-}
-
 export interface QuizBowlAttemptQuestion {
   merchantId: string
-  questionId: string
-  assignedAt: number
-  answeredAt: number | null
-  correct: boolean | null
+  merchantName: string
+  merchantImageURL: string | null
+  merchantTindaZone: string
+  question: string
+  options: string[]
+  correctAnswer: string
 }
 
 export type QuizBowlAttemptStatus = 'in_progress' | 'won' | 'lost'
 
+// One doc per player — only the current/most-recent attempt matters, so
+// this isn't a growing log. `round` is fixed at creation time so a page
+// reload resumes with the exact same questions/option order instead of
+// reshuffling, and `cooldownUntil` gates starting a new round after a loss.
 export interface QuizBowlAttemptDoc {
   uid: string
   status: QuizBowlAttemptStatus
+  round: QuizBowlAttemptQuestion[]
+  index: number
+  correctCount: number
   startedAt: number
-  questions: QuizBowlAttemptQuestion[]
+  finishedAt: number | null
+  cooldownUntil: number | null
 }
 
 export interface QuizBowlTicketDoc {
@@ -91,7 +99,10 @@ export interface QuizBowlTicketDoc {
   redeemed: boolean
 }
 
+// One doc per player, keyed by uid — tracks progress across all 3 taSKed
+// tasks so a player can leave and resume exactly where they left off.
 export interface TaskedEntrantDoc {
+  uid: string
   personalShareSlug: string
   task1ClickCount: number
   task1CompletedAt: number | null
@@ -100,12 +111,22 @@ export interface TaskedEntrantDoc {
   task3MessageId: string | null
   task3CompletedAt: number | null
   allTasksCompletedAt: number | null
-  ticketAwarded: boolean
-  ticketNumber: number | null
 }
 
+// Public slug -> uid pointer, so the anonymous /i/:slug redirect page can
+// resolve whose personal invite link was clicked without needing read
+// access to the entrant's private progress doc.
+export interface TaskedSlugDoc {
+  uid: string
+  createdAt: number
+}
+
+// One doc per logged click on a personal invite link. `visitorId` is a
+// client-generated, localStorage-persisted id used only for lightweight
+// client-side de-duplication (refreshing the link shouldn't recount).
 export interface TaskedClickLogDoc {
   ownerUid: string
+  visitorId: string
   clickedAt: number
 }
 
@@ -114,6 +135,11 @@ export interface TaskedTicketDoc {
   merchantId: string
   awardedAt: number
   redeemed: boolean
+}
+
+export interface TaskedSettingsDoc {
+  inviteLink: string
+  task2Hashtags: string
 }
 
 export type MessageWallStatus = 'pending' | 'approved' | 'rejected'
@@ -133,4 +159,16 @@ export interface GameSettingsDoc {
   taskedOpen: boolean
   quizBowlWinThreshold: number
   taskedTicketsTotal: number
+}
+
+export interface QuizBowlSettingsDoc {
+  noRepeatQuestions: boolean
+}
+
+// One doc per player, tracking every "merchantId:question" key they've
+// ever been asked so a no-repeat round can skip questions they've
+// already seen, even across separate attempts.
+export interface QuizBowlSeenQuestionsDoc {
+  uid: string
+  seen: string[]
 }

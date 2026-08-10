@@ -9,13 +9,16 @@ import {
 } from '../../lib/activities'
 import { addBanner, subscribeToBanners, type BannerWithId } from '../../lib/banners'
 import { formatDate } from '../../lib/date'
+import { Pagination } from '../../components/Pagination'
 
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
+const PAGE_SIZE = 8
 
 export function CalendarTab() {
   const [activities, setActivities] = useState<ActivityWithId[]>([])
+  const [page, setPage] = useState(0)
   const [banners, setBanners] = useState<BannerWithId[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingCreatedAt, setEditingCreatedAt] = useState<number | null>(null)
@@ -37,6 +40,12 @@ export function CalendarTab() {
 
   useEffect(() => subscribeToActivities(setActivities), [])
   useEffect(() => subscribeToBanners(setBanners), [])
+
+  const pageCount = Math.max(1, Math.ceil(activities.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (page >= pageCount) setPage(0)
+  }, [page, pageCount])
 
   useEffect(() => {
     const el = descriptionRef.current
@@ -159,7 +168,7 @@ export function CalendarTab() {
               </tr>
             </thead>
             <tbody>
-              {activities.map((a) => (
+              {activities.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE).map((a) => (
                 <tr key={a.id} className="border-t border-white/10">
                   <td className="px-6 py-3 text-white/70">{formatDate(a.date)}</td>
                   <td className="px-6 py-3 font-medium">{a.title}</td>
@@ -237,6 +246,9 @@ export function CalendarTab() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-white/10 px-6 py-3">
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
         </div>
       </section>
 

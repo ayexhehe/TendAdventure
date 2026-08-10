@@ -12,9 +12,16 @@ export function subscribeToBanners(onChange: (banners: BannerWithId[]) => void) 
   if (!db) return () => {}
 
   const q = query(collection(db, 'banners'), orderBy('order'))
-  return onSnapshot(q, (snapshot) => {
-    onChange(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as BannerDoc) })))
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onChange(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as BannerDoc) })))
+    },
+    (error) => {
+      console.error('Failed to subscribe to banners:', error)
+      onChange([])
+    },
+  )
 }
 
 export async function uploadBannerImage(file: File): Promise<string> {

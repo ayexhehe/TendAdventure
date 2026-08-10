@@ -21,9 +21,16 @@ export function subscribeToActivities(onChange: (activities: ActivityWithId[]) =
   if (!db) return () => {}
 
   const q = query(collection(db, 'activities'), orderBy('date'))
-  return onSnapshot(q, (snapshot) => {
-    onChange(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as ActivityDoc) })))
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onChange(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as ActivityDoc) })))
+    },
+    (error) => {
+      console.error('Failed to subscribe to activities:', error)
+      onChange([])
+    },
+  )
 }
 
 export async function uploadActivityImages(files: File[]): Promise<string[]> {

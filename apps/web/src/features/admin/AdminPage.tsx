@@ -7,12 +7,23 @@ import { AdminsTab } from './AdminsTab'
 import { CalendarTab } from './CalendarTab'
 import { BannersTab } from './BannersTab'
 import { AboutUsTab } from './AboutUsTab'
+import { GeneralTab } from './GeneralTab'
+import { MessageWallTab } from './MessageWallTab'
 
-const TABS = ['Merchants', 'Calendar', 'Banners', 'About Us', 'Users', 'Admins'] as const
+const TABS = [
+  'General',
+  'Merchants',
+  'Calendar',
+  'Banners',
+  'About Us',
+  'Message Wall',
+  'Users',
+  'Admins',
+] as const
 type Tab = (typeof TABS)[number]
 
 export function AdminPage() {
-  const [tab, setTab] = useState<Tab>('Merchants')
+  const [tab, setTab] = useState<Tab>('General')
 
   return (
     <Layout>
@@ -35,10 +46,12 @@ export function AdminPage() {
             ))}
           </div>
 
+          {tab === 'General' && <GeneralTab />}
           {tab === 'Merchants' && <MerchantsTab />}
           {tab === 'Calendar' && <CalendarTab />}
           {tab === 'Banners' && <BannersTab />}
           {tab === 'About Us' && <AboutUsTab />}
+          {tab === 'Message Wall' && <MessageWallTab />}
           {tab === 'Users' && <UsersTab />}
           {tab === 'Admins' && <AdminsTab />}
         </div>

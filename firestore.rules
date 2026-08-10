@@ -19,6 +19,16 @@ service cloud.firestore {
       allow write: if isAdminEmail();
     }
 
+    match /config/quizBowlSettings {
+      allow read: if true;
+      allow write: if isAdminEmail();
+    }
+
+    match /config/taskedSettings {
+      allow read: if true;
+      allow write: if isAdminEmail();
+    }
+
     match /merchants/{merchantId} {
       allow read: if true;
       allow write: if isAdminEmail();
@@ -64,6 +74,122 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
         && request.resource.data.role == 'admin'
         && isAdminEmail();
+
+      // Quiz Bowl win: a player may record their own win once, going only
+      // from not-won to won — never reversing it, never touching anything
+      // else on the profile.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizBowl'])
+        && resource.data.quizBowl.hasWon == false
+        && request.resource.data.quizBowl.hasWon == true
+        && request.resource.data.quizBowl.wonAt is number;
+
+      // Admin Quiz Bowl reset: an admin may reset any player's quizBowl
+      // state (e.g. the "reset all players" admin action), touching no
+      // other field on their profile.
+      allow update: if isAdminEmail()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizBowl']);
+
+      // taSKed win: a player may record their own ticket award once,
+      // going only from not-awarded to awarded — never reversing it,
+      // never touching anything else on the profile.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tasked'])
+        && resource.data.tasked.ticketAwarded == false
+        && request.resource.data.tasked.ticketAwarded == true
+        && request.resource.data.tasked.completedAt is number;
+    }
+
+    match /quizBowlAttempts/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid;
+
+      // Players may advance their own attempt (index/correctCount/status/
+      // finishedAt/cooldownUntil), but the round itself is fixed at
+      // creation and can't be swapped mid-quiz.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.round == resource.data.round;
+
+      // Admins can read/reset any player's attempt (cooldown reset,
+      // reset-all-players) from the General admin panel.
+      allow read, write: if isAdminEmail();
+    }
+
+    match /quizBowlSeenQuestions/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid;
+
+      // Admins can wipe any player's seen-question history as part of
+      // the "reset all players" admin action.
+      allow read, write: if isAdminEmail();
+    }
+
+    match /taskedEntrants/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if isAdminEmail();
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid;
+
+      // A player advances their own 3 tasks; the personal share slug is
+      // fixed at creation and can't be swapped out from under them.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.personalShareSlug == resource.data.personalShareSlug;
+    }
+
+    // Public slug -> uid pointer so an anonymous friend visiting
+    // /i/:slug can resolve whose invite link they clicked, without any
+    // access to that player's actual progress doc.
+    match /taskedSlugs/{slug} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // One doc per logged invite-link click. Writable by anyone (most
+    // clickers are friends who aren't signed in yet) — a deliberate,
+    // low-stakes trust tradeoff consistent with the rest of this app's
+    // game-state writes. Only the owning player (or an admin) can read
+    // their own click log back to compute a count.
+    match /taskedClickLogs/{clickId} {
+      allow create: if request.resource.data.ownerUid is string
+        && request.resource.data.visitorId is string
+        && request.resource.data.clickedAt is number;
+      allow read: if request.auth != null && request.auth.uid == resource.data.ownerUid;
+      allow read: if isAdminEmail();
+      allow update, delete: if false;
+    }
+
+    match /messageWall/{messageId} {
+      // Approved messages are public (the whole point of the wall);
+      // a player can always read back their own pending/rejected
+      // submission; admins can read everything for moderation.
+      allow read: if resource.data.status == 'approved'
+        || (request.auth != null && request.auth.uid == resource.data.uid)
+        || isAdminEmail();
+
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reviewedBy == null
+        && request.resource.data.reviewedAt == null;
+
+      // Only an admin can move a message through moderation.
+      allow update: if isAdminEmail()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedAt']);
     }
 
     match /{document=**} {

@@ -9,7 +9,7 @@ import {
   setDoc,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import type { MerchantDoc } from '@tindadventure/shared'
+import type { MerchantDoc, MerchantQuestion } from '@tindadventure/shared'
 import { db, storage } from './firebase'
 import { compressImage } from './image'
 
@@ -21,9 +21,16 @@ export function subscribeToMerchants(onChange: (merchants: MerchantWithId[]) => 
   if (!db) return () => {}
 
   const q = query(collection(db, 'merchants'), orderBy('name'))
-  return onSnapshot(q, (snapshot) => {
-    onChange(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as MerchantDoc) })))
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onChange(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as MerchantDoc) })))
+    },
+    (error) => {
+      console.error('Failed to subscribe to merchants:', error)
+      onChange([])
+    },
+  )
 }
 
 export async function uploadMerchantImage(file: File): Promise<string> {
@@ -36,6 +43,17 @@ export async function uploadMerchantImage(file: File): Promise<string> {
   return getDownloadURL(fileRef)
 }
 
+function cleanQuestions(questions: MerchantQuestion[]): MerchantQuestion[] {
+  return questions
+    .map((q) => ({
+      question: q.question.trim(),
+      correctAnswer: q.correctAnswer.trim(),
+      dummyAnswers: q.dummyAnswers.map((a) => a.trim()),
+    }))
+    .filter((q) => q.question && q.correctAnswer && q.dummyAnswers.every(Boolean))
+    .slice(0, 5)
+}
+
 export async function addMerchant(input: {
   name: string
   description: string
@@ -43,6 +61,7 @@ export async function addMerchant(input: {
   tindaZone: string
   youthRepresentative: string
   imageURL: string | null
+  questions: MerchantQuestion[]
 }) {
   if (!db) return
 
@@ -53,6 +72,7 @@ export async function addMerchant(input: {
     tindaZone: input.tindaZone.trim(),
     youthRepresentative: input.youthRepresentative.trim(),
     imageURL: input.imageURL,
+    questions: cleanQuestions(input.questions),
   }
   await addDoc(collection(db, 'merchants'), merchant)
 }
@@ -66,6 +86,7 @@ export async function updateMerchant(
     tindaZone: string
     youthRepresentative: string
     imageURL: string | null
+    questions: MerchantQuestion[]
   },
 ) {
   if (!db) return
@@ -77,6 +98,7 @@ export async function updateMerchant(
     tindaZone: input.tindaZone.trim(),
     youthRepresentative: input.youthRepresentative.trim(),
     imageURL: input.imageURL,
+    questions: cleanQuestions(input.questions),
   }
   await setDoc(doc(db, 'merchants', id), merchant)
 }

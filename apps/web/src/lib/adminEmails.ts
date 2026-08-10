@@ -6,10 +6,17 @@ const adminEmailsRef = () => doc(db!, 'config', 'adminEmails')
 export function subscribeToAdminEmails(onChange: (emails: string[]) => void) {
   if (!db) return () => {}
 
-  return onSnapshot(adminEmailsRef(), (snapshot) => {
-    const data = snapshot.data() as { emails?: string[] } | undefined
-    onChange(data?.emails ?? [])
-  })
+  return onSnapshot(
+    adminEmailsRef(),
+    (snapshot) => {
+      const data = snapshot.data() as { emails?: string[] } | undefined
+      onChange(data?.emails ?? [])
+    },
+    (error) => {
+      console.error('Failed to subscribe to admin emails:', error)
+      onChange([])
+    },
+  )
 }
 
 export async function addAdminEmail(email: string) {

@@ -7,9 +7,16 @@ import { compressImage } from './image'
 export function subscribeToAbout(onChange: (about: AboutDoc | null) => void) {
   if (!db) return () => {}
 
-  return onSnapshot(doc(db, 'config', 'about'), (snapshot) => {
-    onChange(snapshot.exists() ? (snapshot.data() as AboutDoc) : null)
-  })
+  return onSnapshot(
+    doc(db, 'config', 'about'),
+    (snapshot) => {
+      onChange(snapshot.exists() ? (snapshot.data() as AboutDoc) : null)
+    },
+    (error) => {
+      console.error('Failed to subscribe to about:', error)
+      onChange(null)
+    },
+  )
 }
 
 export async function uploadAboutImage(file: File): Promise<string> {

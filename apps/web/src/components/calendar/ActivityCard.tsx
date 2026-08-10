@@ -6,24 +6,31 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-function CardContent({ activity }: { activity: ActivityWithId }) {
+function CardContent({
+  activity,
+  priority,
+}: {
+  activity: ActivityWithId
+  priority?: 'high' | 'low' | 'auto'
+}) {
   const upcoming = activity.date >= todayISO()
 
   return (
-    <div>
+    <div className="flex h-full w-full flex-col">
       {activity.imageURLs[0] ? (
         <ImageWithSkeleton
           src={activity.imageURLs[0]}
           alt=""
-          className="aspect-video w-full"
+          className="aspect-video w-full shrink-0"
           imgClassName="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
+          priority={priority}
         />
       ) : (
-        <div className="flex aspect-video w-full items-center justify-center bg-linear-to-br from-white/15 to-white/5 text-3xl font-semibold text-white/30">
+        <div className="flex aspect-video w-full shrink-0 items-center justify-center bg-linear-to-br from-white/15 to-white/5 text-3xl font-semibold text-white/30">
           {activity.title.charAt(0).toUpperCase() || '?'}
         </div>
       )}
-      <div className="flex min-h-24 flex-col gap-1 p-3.5">
+      <div className="flex min-h-24 flex-1 flex-col gap-1 p-3.5">
         <div className="flex items-center gap-2">
           <p className="text-[10px] font-medium tracking-[0.15em] text-white/40 uppercase">
             {formatDate(activity.date)}
@@ -46,14 +53,16 @@ function CardContent({ activity }: { activity: ActivityWithId }) {
 export function ActivityCard({
   activity,
   onClick,
+  priority,
 }: {
   activity: ActivityWithId
   onClick?: () => void
+  priority?: 'high' | 'low' | 'auto'
 }) {
   if (!onClick) {
     return (
-      <div className="group overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
-        <CardContent activity={activity} />
+      <div className="group flex h-full overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+        <CardContent activity={activity} priority={priority} />
       </div>
     )
   }
@@ -62,9 +71,9 @@ export function ActivityCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full overflow-hidden rounded-xl bg-white/5 text-left ring-1 ring-white/10 transition duration-300 hover:ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+      className="group flex h-full w-full overflow-hidden rounded-xl bg-white/5 text-left ring-1 ring-white/10 transition duration-300 hover:ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
     >
-      <CardContent activity={activity} />
+      <CardContent activity={activity} priority={priority} />
     </button>
   )
 }

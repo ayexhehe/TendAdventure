@@ -1,5 +1,5 @@
 export function SkeletonBlock({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-2xl bg-white/20 ring-1 ring-inset ring-white/10 ${className}`} />
+  return <div className={`skeleton-shimmer rounded-2xl ring-1 ring-inset ring-white/10 ${className}`} />
 }
 
 export function TextLinesSkeleton({ lines = 3 }: { lines?: number }) {
@@ -8,7 +8,7 @@ export function TextLinesSkeleton({ lines = 3 }: { lines?: number }) {
       {Array.from({ length: lines }).map((_, i) => (
         <div
           key={i}
-          className={`h-4 animate-pulse rounded-full bg-white/20 ${i === lines - 1 ? 'w-2/3' : 'w-full'}`}
+          className={`skeleton-shimmer h-4 rounded-full ${i === lines - 1 ? 'w-2/3' : 'w-full'}`}
         />
       ))}
     </div>
@@ -18,11 +18,11 @@ export function TextLinesSkeleton({ lines = 3 }: { lines?: number }) {
 export function CardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl bg-white/10 ring-1 ring-white/15">
-      <div className="aspect-video w-full animate-pulse bg-white/20" />
+      <div className="skeleton-shimmer aspect-video w-full" />
       <div className="flex flex-col gap-2 p-3.5">
-        <div className="h-2.5 w-16 animate-pulse rounded-full bg-white/20" />
-        <div className="h-4 w-3/4 animate-pulse rounded-full bg-white/20" />
-        <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/20" />
+        <div className="skeleton-shimmer h-2.5 w-16 rounded-full" />
+        <div className="skeleton-shimmer h-4 w-3/4 rounded-full" />
+        <div className="skeleton-shimmer h-3 w-1/2 rounded-full" />
       </div>
     </div>
   )
@@ -47,11 +47,11 @@ export function CardSkeletonGrid({
 export function SpotlightSkeleton() {
   return (
     <div className="overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">
-      <div className="aspect-video w-full animate-pulse bg-white/20 md:aspect-21/9" />
+      <div className="skeleton-shimmer aspect-video w-full md:aspect-21/9" />
       <div className="flex flex-col gap-4 p-6 md:p-8">
         <div className="flex flex-col gap-2">
-          <div className="h-2.5 w-24 animate-pulse rounded-full bg-white/20" />
-          <div className="h-7 w-1/2 animate-pulse rounded-full bg-white/20" />
+          <div className="skeleton-shimmer h-2.5 w-24 rounded-full" />
+          <div className="skeleton-shimmer h-7 w-1/2 rounded-full" />
         </div>
         <TextLinesSkeleton lines={2} />
       </div>
