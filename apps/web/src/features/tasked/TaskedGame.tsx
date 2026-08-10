@@ -20,11 +20,10 @@ import {
 
 const inputClass = 'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 
-// Invite links are meant to be opened by someone else's phone, so in
-// production they must always point at the live site regardless of what
-// origin generated them. In dev, fall back to the actual local origin so
-// the invite flow (/i/:slug) is testable against localhost.
-const SITE_ORIGIN = import.meta.env.DEV ? window.location.origin : 'https://tend-adventure-web.vercel.app'
+// Invite links are meant to be opened by someone else's phone, so they must
+// always point at the live site regardless of what origin generated them —
+// including in dev, where a localhost link would be useless to the recipient.
+const SITE_ORIGIN = 'https://tend-adventure-web.vercel.app'
 
 function TaskCard({
   step,

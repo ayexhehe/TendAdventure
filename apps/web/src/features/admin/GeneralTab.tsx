@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { resetAllCooldowns, resetAllPlayers } from '../../lib/quizBowlAdmin'
+import { resetAllTaskedPlayers } from '../../lib/taskedAdmin'
 import { subscribeToQuizBowlSettings, setNoRepeatQuestions } from '../../lib/quizBowlSettings'
 import { subscribeToTaskedSettings, saveTaskedSettings } from '../../lib/taskedSettings'
 
 const inputClass = 'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
 
-type ActionKey = 'cooldown' | 'players'
+type ActionKey = 'cooldown' | 'players' | 'tasked'
 
 export function GeneralTab() {
   const [confirming, setConfirming] = useState<ActionKey | null>(null)
@@ -14,6 +15,7 @@ export function GeneralTab() {
   const [result, setResult] = useState<Record<ActionKey, string | null>>({
     cooldown: null,
     players: null,
+    tasked: null,
   })
   const [noRepeat, setNoRepeat] = useState(false)
   const [savingToggle, setSavingToggle] = useState(false)
@@ -31,7 +33,6 @@ export function GeneralTab() {
     }
   }
 
-  const [inviteLink, setInviteLink] = useState('')
   const [task2Hashtags, setTask2Hashtags] = useState('')
   const [taskedLoaded, setTaskedLoaded] = useState(false)
   const [savingTasked, setSavingTasked] = useState(false)
@@ -41,7 +42,6 @@ export function GeneralTab() {
     () =>
       subscribeToTaskedSettings((s) => {
         if (!taskedLoaded) {
-          setInviteLink(s?.inviteLink ?? '')
           setTask2Hashtags(s?.task2Hashtags ?? '')
           setTaskedLoaded(true)
         }
@@ -54,7 +54,7 @@ export function GeneralTab() {
     setSavingTasked(true)
     setTaskedSaved(false)
     try {
-      await saveTaskedSettings({ inviteLink: inviteLink.trim(), task2Hashtags: task2Hashtags.trim() })
+      await saveTaskedSettings({ task2Hashtags: task2Hashtags.trim() })
       setTaskedSaved(true)
     } finally {
       setSavingTasked(false)
@@ -80,6 +80,18 @@ export function GeneralTab() {
     try {
       const count = await resetAllPlayers()
       setResult((r) => ({ ...r, players: `Reset ${count} player attempt${count === 1 ? '' : 's'}. Everyone can play again.` }))
+    } finally {
+      setRunning(null)
+    }
+  }
+
+  const handleResetTasked = async () => {
+    setConfirming(null)
+    setRunning('tasked')
+    setResult((r) => ({ ...r, tasked: null }))
+    try {
+      const count = await resetAllTaskedPlayers()
+      setResult((r) => ({ ...r, tasked: `Reset ${count} player${count === 1 ? '' : 's'}. Everyone can play again.` }))
     } finally {
       setRunning(null)
     }
@@ -209,23 +221,11 @@ export function GeneralTab() {
       <section className="rounded-2xl bg-white/5 p-6">
         <h2 className="text-lg font-semibold">taSKed</h2>
         <p className="mt-1 text-sm text-white/60">
-          Task 1 shares a personal link with each player that opens our own invite page — friends
-          land there instantly instead of waiting on a redirect. Optionally point them somewhere
-          else too (e.g. a Facebook group) below. Task 2's hashtags are shown to players as
-          instructions.
+          Task 1 shares a personal link with each player that opens our own invite page instantly
+          — no redirect. Task 2's hashtags are shown to players as instructions.
         </p>
 
         <div className="mt-5 flex flex-col gap-4 border-t border-white/10 pt-5">
-          <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Optional extra link shown on the invite page</label>
-            <input
-              type="url"
-              value={inviteLink}
-              onChange={(e) => setInviteLink(e.target.value)}
-              placeholder="https://..."
-              className={inputClass}
-            />
-          </div>
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>Task 2 hashtags</label>
             <input
@@ -247,6 +247,47 @@ export function GeneralTab() {
             </button>
             {taskedSaved && <span className="text-xs text-emerald-300">Saved.</span>}
           </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Reset all tasks</p>
+              <p className="text-xs text-white/50">
+                Wipes every player's taSKed progress and win status — including players who
+                already won. Personal share links keep working; everyone starts all 3 tasks over.
+              </p>
+            </div>
+            {confirming === 'tasked' ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-xs text-white/50">This affects all players. Continue?</span>
+                <button
+                  type="button"
+                  onClick={() => void handleResetTasked()}
+                  className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-400"
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(null)}
+                  className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirming('tasked')}
+                disabled={running === 'tasked'}
+                className="shrink-0 rounded-full bg-red-500/20 px-4 py-2 text-xs font-medium text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+              >
+                {running === 'tasked' ? 'Resetting…' : 'Reset all tasks'}
+              </button>
+            )}
+          </div>
+          {result.tasked && <p className="text-xs text-emerald-300">{result.tasked}</p>}
         </div>
       </section>
     </div>

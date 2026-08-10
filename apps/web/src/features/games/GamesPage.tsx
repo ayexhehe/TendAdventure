@@ -10,28 +10,52 @@ export function GamesPage() {
   const { user } = useAuth()
   const [canContinue, setCanContinue] = useState(false)
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
+  const [quizProgress, setQuizProgress] = useState(0)
+  const [quizWon, setQuizWon] = useState(false)
   const [taskedInProgress, setTaskedInProgress] = useState(false)
+  const [taskedProgress, setTaskedProgress] = useState(0)
+  const [taskedWon, setTaskedWon] = useState(false)
 
   useEffect(() => {
     if (!user) {
       setCanContinue(false)
       setCooldownUntil(null)
+      setQuizProgress(0)
+      setQuizWon(false)
       return
     }
     return subscribeToAttempt(user.uid, (attempt) => {
       setCanContinue(attempt?.status === 'in_progress')
       setCooldownUntil(attempt?.status === 'lost' ? attempt.cooldownUntil : null)
+      setQuizWon(attempt?.status === 'won')
+      if (attempt?.status === 'won') {
+        setQuizProgress(1)
+      } else if (attempt?.status === 'in_progress' && attempt.round.length > 0) {
+        setQuizProgress(attempt.index / attempt.round.length)
+      } else {
+        setQuizProgress(0)
+      }
     })
   }, [user])
 
   useEffect(() => {
     if (!user) {
       setTaskedInProgress(false)
+      setTaskedProgress(0)
+      setTaskedWon(false)
       return
     }
     return subscribeToEntrant(user.uid, (entrant) => {
-      const started = !!(entrant?.task1CompletedAt || entrant?.task2CompletedAt || entrant?.task3CompletedAt)
-      setTaskedInProgress(started && !entrant?.allTasksCompletedAt)
+      const completedCount = [
+        entrant?.task1CompletedAt,
+        entrant?.task2CompletedAt,
+        entrant?.task3CompletedAt,
+      ].filter(Boolean).length
+      const started = completedCount > 0
+      const won = !!entrant?.allTasksCompletedAt
+      setTaskedInProgress(started && !won)
+      setTaskedProgress(won ? 1 : completedCount / 3)
+      setTaskedWon(won)
     })
   }, [user])
 
@@ -47,6 +71,8 @@ export function GamesPage() {
             icon={<QuizBowlIcon />}
             continueAvailable={canContinue}
             cooldownUntil={cooldownUntil}
+            progress={quizProgress}
+            completed={quizWon}
           />
           <GameCard
             to="/tasked"
@@ -54,6 +80,8 @@ export function GamesPage() {
             description="Complete 3 tasks to win a ticket."
             icon={<TaskedIcon />}
             continueAvailable={taskedInProgress}
+            progress={taskedProgress}
+            completed={taskedWon}
           />
         </div>
       </div>

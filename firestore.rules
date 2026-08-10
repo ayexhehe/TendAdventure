@@ -100,6 +100,12 @@ service cloud.firestore {
         && resource.data.tasked.ticketAwarded == false
         && request.resource.data.tasked.ticketAwarded == true
         && request.resource.data.tasked.completedAt is number;
+
+      // Admin taSKed reset: an admin may reset any player's tasked
+      // ticket state (e.g. the "reset all tasks" admin action), touching
+      // no other field on their profile.
+      allow update: if isAdminEmail()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tasked']);
     }
 
     match /quizBowlAttempts/{uid} {
@@ -148,6 +154,13 @@ service cloud.firestore {
         && request.auth.uid == uid
         && request.resource.data.uid == uid
         && request.resource.data.personalShareSlug == resource.data.personalShareSlug;
+
+      // Admins can reset any player's progress (the "reset all tasks"
+      // admin action) — the personal share slug still can't change, so a
+      // reset player's existing invite link keeps working.
+      allow update: if isAdminEmail()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.personalShareSlug == resource.data.personalShareSlug;
     }
 
     // Public slug -> uid pointer so an anonymous friend visiting
@@ -170,7 +183,11 @@ service cloud.firestore {
         && request.resource.data.clickedAt is number;
       allow read: if request.auth != null && request.auth.uid == resource.data.ownerUid;
       allow read: if isAdminEmail();
-      allow update, delete: if false;
+      allow update: if false;
+
+      // Only an admin can clear click logs, as part of the "reset all
+      // tasks" admin action.
+      allow delete: if isAdminEmail();
     }
 
     match /messageWall/{messageId} {

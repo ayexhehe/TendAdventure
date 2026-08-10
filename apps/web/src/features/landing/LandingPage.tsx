@@ -120,19 +120,30 @@ export function LandingPage() {
         )}
 
         <div className="flex w-full max-w-5xl flex-col gap-16 px-4">
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <GameCard
-              to="/quizbowl"
-              title="Quiz Bowl"
-              description="Test your merchant knowledge and win prizes."
-              icon={<QuizBowlIcon />}
-            />
-            <GameCard
-              to="/tasked"
-              title="taSKed"
-              description="Complete 3 tasks to win a ticket."
-              icon={<TaskedIcon />}
-            />
+          <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-amber-400/25 via-white/10 to-transparent p-6 ring-1 ring-amber-300/40 sm:p-8">
+            <div className="mb-5 text-center sm:text-left">
+              <p className="text-xs font-semibold tracking-[0.2em] text-amber-300 uppercase">🎟️ Play &amp; Win</p>
+              <h2 className="mt-1 text-2xl font-bold text-white sm:text-3xl">
+                Win a TindaCoupon by joining our games!
+              </h2>
+              <p className="mt-1 text-sm text-white/70">
+                Test your merchant know-how, complete fun challenges, and score exclusive prizes.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <GameCard
+                to="/quizbowl"
+                title="Quiz Bowl"
+                description="Test your merchant knowledge and win prizes."
+                icon={<QuizBowlIcon />}
+              />
+              <GameCard
+                to="/tasked"
+                title="taSKed"
+                description="Complete 3 tasks to win a ticket."
+                icon={<TaskedIcon />}
+              />
+            </div>
           </section>
 
           {(merchantsLoading || merchants.length > 0) && (

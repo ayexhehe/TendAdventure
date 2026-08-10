@@ -141,7 +141,6 @@ export interface TaskedTicketDoc {
 }
 
 export interface TaskedSettingsDoc {
-  inviteLink: string
   task2Hashtags: string
 }
 

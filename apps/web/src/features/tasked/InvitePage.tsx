@@ -4,7 +4,6 @@ import type { AboutDoc } from '@tindadventure/shared'
 import { Layout } from '../../components/layout/Layout'
 import { useAuth } from '../../hooks/useAuth'
 import { resolveSlug, logInviteClick } from '../../lib/tasked'
-import { subscribeToTaskedSettings } from '../../lib/taskedSettings'
 import { subscribeToAbout } from '../../lib/about'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
@@ -27,7 +26,6 @@ export function InvitePage() {
   const [ownerName, setOwnerName] = useState('A friend')
   const [resolved, setResolved] = useState(false)
   const [about, setAbout] = useState<AboutDoc | null>(null)
-  const [inviteLink, setInviteLink] = useState<string | null>(null)
   const clickLogged = useRef(false)
 
   useEffect(() => {
@@ -62,7 +60,6 @@ export function InvitePage() {
   }, [ownerUid, user, authLoading])
 
   useEffect(() => subscribeToAbout(setAbout), [])
-  useEffect(() => subscribeToTaskedSettings((s) => setInviteLink(s?.inviteLink || null)), [])
 
   return (
     <Layout>
@@ -84,9 +81,11 @@ export function InvitePage() {
             <div className="text-center">
               <p className="text-xs font-medium tracking-[0.2em] text-white/40 uppercase">You're invited</p>
               <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
-                {ownerName} wants you at Linggo ng Kabataan!
+                {ownerName} says: Come and celebrate Linggo ng Kabataan with SK Guadalupe!
               </h1>
-              <p className="mt-2 text-sm text-white/60">Merchant Adventure • SK Guadalupe</p>
+              <p className="mt-2 text-sm text-white/60">
+                Merchant stalls, games, prizes, and good company — all in one place.
+              </p>
             </div>
 
             {about?.imageURL && (
@@ -115,15 +114,6 @@ export function InvitePage() {
                 See the games
               </Link>
             </div>
-
-            {inviteLink && (
-              <p className="text-center text-xs text-white/40">
-                Also join us here:{' '}
-                <a href={inviteLink} target="_blank" rel="noreferrer" className="underline">
-                  {inviteLink}
-                </a>
-              </p>
-            )}
           </>
         )}
       </div>
