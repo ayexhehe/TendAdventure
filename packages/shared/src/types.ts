@@ -39,6 +39,12 @@ export interface MerchantDoc {
   youthRepresentative: string
   imageURL: string | null
   questions: MerchantQuestion[]
+  // TindaCoupon allocation: how many game-prize coupons this merchant is
+  // willing to honor, and how many have been claimed so far. `issued`
+  // only ever moves via the narrowly-scoped self-service increment rule
+  // used by the coupon-award transaction — never a full merchant edit.
+  couponSupply: number
+  couponsIssued: number
 }
 
 export interface ActivityDoc {
@@ -92,13 +98,6 @@ export interface QuizBowlAttemptDoc {
   cooldownUntil: number | null
 }
 
-export interface QuizBowlTicketDoc {
-  uid: string
-  merchantId: string
-  awardedAt: number
-  redeemed: boolean
-}
-
 // One doc per player, keyed by uid — tracks progress across all 3 taSKed
 // tasks so a player can leave and resume exactly where they left off.
 export interface TaskedEntrantDoc {
@@ -133,15 +132,34 @@ export interface TaskedClickLogDoc {
   clickedAt: number
 }
 
-export interface TaskedTicketDoc {
-  uid: string
-  merchantId: string
-  awardedAt: number
-  redeemed: boolean
-}
-
 export interface TaskedSettingsDoc {
   task2Hashtags: string
+}
+
+export type TindaCouponSource = 'quizBowl' | 'tasked'
+
+// The prize for winning either game. Awarded to a random merchant with
+// remaining coupon supply. `code` is just a display/reference code for
+// the coupon itself — the actual redemption check happens against the
+// merchant's own secret code, stored separately in MerchantCodeDoc.
+export interface TindaCouponDoc {
+  uid: string
+  merchantId: string
+  code: string
+  source: TindaCouponSource
+  awardedAt: number
+  redeemed: boolean
+  redeemedAt: number | null
+  redeemedCode: string | null
+}
+
+// Kept out of the publicly-readable merchants collection on purpose — a
+// coupon holder must never be able to read this directly, only prove
+// they know it by having a seller type it in. Firestore rules validate
+// a redemption by comparing against this doc via get(), which bypasses
+// this doc's own (admin-only) read rule.
+export interface MerchantCodeDoc {
+  code: string
 }
 
 export type MessageWallStatus = 'pending' | 'approved' | 'rejected'
@@ -156,11 +174,21 @@ export interface MessageWallDoc {
   reviewedAt: number | null
 }
 
+// Per-game admin controls, independent of each other: `Open` gates
+// whether the game can be played at all; `TicketsTotal` caps how many
+// TindaCoupons that game can hand out in total (0 means unlimited —
+// per-merchant coupon supply is still the real constraint in that case).
+// `TicketsIssued` is a public running counter (bumped by the same
+// transaction that awards a coupon) so any player's client can check
+// the cap without needing read access to the private tindaCoupons
+// collection.
 export interface GameSettingsDoc {
   quizBowlOpen: boolean
   taskedOpen: boolean
-  quizBowlWinThreshold: number
+  quizBowlTicketsTotal: number
+  quizBowlTicketsIssued: number
   taskedTicketsTotal: number
+  taskedTicketsIssued: number
 }
 
 export interface QuizBowlSettingsDoc {

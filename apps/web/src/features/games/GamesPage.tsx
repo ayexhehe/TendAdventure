@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
+import type { GameSettingsDoc } from '@tindadventure/shared'
 import { Layout } from '../../components/layout/Layout'
 import { GameCard } from '../../components/games/GameCard'
 import { QuizBowlIcon, TaskedIcon } from '../../components/games/gameIcons'
 import { useAuth } from '../../hooks/useAuth'
 import { subscribeToAttempt } from '../../lib/quizBowlAttempts'
 import { subscribeToEntrant } from '../../lib/tasked'
+import { subscribeToGameSettings } from '../../lib/gameSettings'
+import { isGameSoldOut } from '../../lib/tindaCoupons'
+import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
 
 export function GamesPage() {
   const { user } = useAuth()
@@ -15,6 +19,11 @@ export function GamesPage() {
   const [taskedInProgress, setTaskedInProgress] = useState(false)
   const [taskedProgress, setTaskedProgress] = useState(0)
   const [taskedWon, setTaskedWon] = useState(false)
+  const [gameSettings, setGameSettings] = useState<GameSettingsDoc | null>(null)
+  const [merchants, setMerchants] = useState<MerchantWithId[]>([])
+
+  useEffect(() => subscribeToGameSettings(setGameSettings), [])
+  useEffect(() => subscribeToMerchants(setMerchants), [])
 
   useEffect(() => {
     if (!user) {
@@ -59,6 +68,11 @@ export function GamesPage() {
     })
   }, [user])
 
+  const quizBowlOpen = gameSettings?.quizBowlOpen ?? true
+  const taskedOpen = gameSettings?.taskedOpen ?? true
+  const quizSoldOut = isGameSoldOut('quizBowl', gameSettings, merchants)
+  const taskedSoldOut = isGameSoldOut('tasked', gameSettings, merchants)
+
   return (
     <Layout>
       <div className="flex w-full max-w-5xl flex-col gap-6 px-4 py-10">
@@ -73,15 +87,27 @@ export function GamesPage() {
             cooldownUntil={cooldownUntil}
             progress={quizProgress}
             completed={quizWon}
+            closed={!quizBowlOpen}
+            soldOut={quizSoldOut}
+            ticketProgress={{
+              issued: gameSettings?.quizBowlTicketsIssued ?? 0,
+              total: gameSettings?.quizBowlTicketsTotal ?? 0,
+            }}
           />
           <GameCard
             to="/tasked"
             title="taSKed"
-            description="Complete 3 tasks to win a ticket."
+            description="Complete 3 tasks to win a TindaCoupon."
             icon={<TaskedIcon />}
             continueAvailable={taskedInProgress}
             progress={taskedProgress}
             completed={taskedWon}
+            closed={!taskedOpen}
+            soldOut={taskedSoldOut}
+            ticketProgress={{
+              issued: gameSettings?.taskedTicketsIssued ?? 0,
+              total: gameSettings?.taskedTicketsTotal ?? 0,
+            }}
           />
         </div>
       </div>

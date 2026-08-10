@@ -12,6 +12,9 @@ import { CardSkeletonGrid, SkeletonBlock } from '../../components/skeleton/Skele
 import { subscribeToBanners, type BannerWithId } from '../../lib/banners'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
 import { subscribeToActivities, type ActivityWithId } from '../../lib/activities'
+import { subscribeToGameSettings } from '../../lib/gameSettings'
+import { isGameSoldOut } from '../../lib/tindaCoupons'
+import type { GameSettingsDoc } from '@tindadventure/shared'
 
 const MERCHANT_PREVIEW_LIMIT = 2
 const ACTIVITY_PREVIEW_LIMIT = 2
@@ -27,8 +30,11 @@ export function LandingPage() {
   const [merchantsLoading, setMerchantsLoading] = useState(true)
   const [activities, setActivities] = useState<ActivityWithId[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(true)
+  const [gameSettings, setGameSettings] = useState<GameSettingsDoc | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
+
+  useEffect(() => subscribeToGameSettings(setGameSettings), [])
 
   useEffect(
     () =>
@@ -61,6 +67,10 @@ export function LandingPage() {
   }, [location.hash])
 
   const upcomingActivities = activities.filter((a) => a.date >= todayISO())
+  const quizBowlOpen = gameSettings?.quizBowlOpen ?? true
+  const taskedOpen = gameSettings?.taskedOpen ?? true
+  const quizSoldOut = isGameSoldOut('quizBowl', gameSettings, merchants)
+  const taskedSoldOut = isGameSoldOut('tasked', gameSettings, merchants)
 
   const merchantCards = [
     ...merchants.slice(0, MERCHANT_PREVIEW_LIMIT).map((m) => (
@@ -136,12 +146,24 @@ export function LandingPage() {
                 title="Quiz Bowl"
                 description="Test your merchant knowledge and win prizes."
                 icon={<QuizBowlIcon />}
+                closed={!quizBowlOpen}
+                soldOut={quizSoldOut}
+                ticketProgress={{
+                  issued: gameSettings?.quizBowlTicketsIssued ?? 0,
+                  total: gameSettings?.quizBowlTicketsTotal ?? 0,
+                }}
               />
               <GameCard
                 to="/tasked"
                 title="taSKed"
-                description="Complete 3 tasks to win a ticket."
+                description="Complete 3 tasks to win a TindaCoupon."
                 icon={<TaskedIcon />}
+                closed={!taskedOpen}
+                soldOut={taskedSoldOut}
+                ticketProgress={{
+                  issued: gameSettings?.taskedTicketsIssued ?? 0,
+                  total: gameSettings?.taskedTicketsTotal ?? 0,
+                }}
               />
             </div>
           </section>

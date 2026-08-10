@@ -3,6 +3,7 @@ import type { MerchantQuestion } from '@tindadventure/shared'
 import {
   addMerchant,
   deleteMerchant,
+  subscribeToMerchantCodes,
   subscribeToMerchants,
   updateMerchant,
   uploadMerchantImage,
@@ -38,6 +39,7 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
 
 export function MerchantsTab() {
   const [merchants, setMerchants] = useState<MerchantWithId[]>([])
+  const [merchantCodes, setMerchantCodes] = useState<Record<string, string>>({})
   const [page, setPage] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [existingImageURL, setExistingImageURL] = useState<string | null>(null)
@@ -48,6 +50,8 @@ export function MerchantsTab() {
   const [youthRepresentative, setYouthRepresentative] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [couponSupply, setCouponSupply] = useState('0')
+  const [merchantCode, setMerchantCode] = useState('')
   const [questions, setQuestions] = useState<MerchantQuestion[]>([])
   const [questionsOpen, setQuestionsOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -61,6 +65,7 @@ export function MerchantsTab() {
   useAutoGrow(productRef, product)
 
   useEffect(() => subscribeToMerchants(setMerchants), [])
+  useEffect(() => subscribeToMerchantCodes(setMerchantCodes), [])
 
   const pageCount = Math.max(1, Math.ceil(merchants.length / PAGE_SIZE))
 
@@ -87,6 +92,8 @@ export function MerchantsTab() {
     setTindaZone('')
     setYouthRepresentative('')
     setPhotoFile(null)
+    setCouponSupply('0')
+    setMerchantCode('')
     setQuestions([])
     setQuestionsOpen(false)
   }
@@ -100,6 +107,8 @@ export function MerchantsTab() {
     setTindaZone(m.tindaZone)
     setYouthRepresentative(m.youthRepresentative)
     setPhotoFile(null)
+    setCouponSupply(String(m.couponSupply ?? 0))
+    setMerchantCode(merchantCodes[m.id] ?? '')
     setQuestions(m.questions ?? [])
     setQuestionsOpen((m.questions ?? []).length > 0)
     setError(null)
@@ -163,6 +172,8 @@ export function MerchantsTab() {
         youthRepresentative,
         imageURL,
         questions,
+        couponSupply: Number(couponSupply) || 0,
+        merchantCode,
       }
       if (editingId) {
         await updateMerchant(editingId, payload)
@@ -188,6 +199,7 @@ export function MerchantsTab() {
                 <th className="px-6 py-3">Name</th>
                 <th className="px-6 py-3">Tinda Zone</th>
                 <th className="px-6 py-3">Youth Representative</th>
+                <th className="px-6 py-3">Coupons</th>
                 <th className="px-6 py-3">Actions</th>
               </tr>
             </thead>
@@ -197,6 +209,9 @@ export function MerchantsTab() {
                   <td className="px-6 py-3 font-medium">{m.name}</td>
                   <td className="px-6 py-3 text-white/70">{m.tindaZone}</td>
                   <td className="px-6 py-3 text-white/70">{m.youthRepresentative || '—'}</td>
+                  <td className="px-6 py-3 text-white/70">
+                    {m.couponsIssued ?? 0} / {m.couponSupply ?? 0}
+                  </td>
                   <td className="px-6 py-3">
                     {confirmDeleteId === m.id ? (
                       <div className="flex items-center gap-2">
@@ -250,7 +265,7 @@ export function MerchantsTab() {
               ))}
               {merchants.length === 0 && (
                 <tr>
-                  <td className="px-6 py-6 text-white/50" colSpan={4}>
+                  <td className="px-6 py-6 text-white/50" colSpan={5}>
                     No merchants yet.
                   </td>
                 </tr>
@@ -327,6 +342,31 @@ export function MerchantsTab() {
             {!photoFile && existingImageURL && (
               <p className="text-xs text-white/40">Leave blank to keep the current photo.</p>
             )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>TindaCoupon supply</label>
+            <input
+              type="number"
+              min={0}
+              value={couponSupply}
+              onChange={(e) => setCouponSupply(e.target.value)}
+              placeholder="0"
+              className={inputClass}
+            />
+            <p className="text-xs text-white/40">How many game-prize coupons this merchant will honor.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Tindahan code (secret)</label>
+            <input
+              type="text"
+              value={merchantCode}
+              onChange={(e) => setMerchantCode(e.target.value)}
+              placeholder="e.g. GUAD-05"
+              className={`${inputClass} ring-1 ring-amber-400/40`}
+            />
+            <p className="text-xs text-white/40">
+              Give this to the seller — they enter it to redeem a coupon. Never shown to players.
+            </p>
           </div>
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className={labelClass}>Description</label>

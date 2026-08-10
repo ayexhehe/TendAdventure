@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import type { GameSettingsDoc } from '@tindadventure/shared'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
 import { getAttempt, startAttempt, advanceAttempt, QUIZ_COOLDOWN_MS } from '../../lib/quizBowlAttempts'
 import { getSeenQuestions, recordSeenQuestions } from '../../lib/quizBowlSeenQuestions'
 import { subscribeToQuizBowlSettings } from '../../lib/quizBowlSettings'
+import { subscribeToGameSettings } from '../../lib/gameSettings'
 import { recordQuizBowlWin } from '../../lib/users'
+import { awardTindaCoupon, isGameSoldOut, subscribeToMyCoupons, type TindaCouponWithId } from '../../lib/tindaCoupons'
 import { useAuth } from '../../hooks/useAuth'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
+import { BackButton } from '../../components/BackButton'
+import { CouponWinCelebration } from '../../components/tindaCoupons/CouponWinCelebration'
 import { buildQuizRound, questionKey, type QuizRoundQuestion } from './buildQuizRound'
 import { formatCooldown } from '../../lib/time'
 
@@ -87,6 +92,19 @@ export function QuizBowlGame() {
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [clueOpen, setClueOpen] = useState(false)
   const [noRepeatQuestions, setNoRepeatQuestions] = useState(false)
+  const [gameSettings, setGameSettings] = useState<GameSettingsDoc | null>(null)
+  const [myCoupons, setMyCoupons] = useState<TindaCouponWithId[]>([])
+
+  useEffect(() => subscribeToGameSettings(setGameSettings), [])
+
+  useEffect(() => {
+    if (!user) return
+    return subscribeToMyCoupons(user.uid, setMyCoupons)
+  }, [user])
+
+  const gameOpen = gameSettings?.quizBowlOpen ?? true
+  const soldOut = isGameSoldOut('quizBowl', gameSettings, merchants)
+  const hasQuizCoupon = myCoupons.some((c) => c.source === 'quizBowl')
 
   useEffect(
     () =>
@@ -181,16 +199,49 @@ export function QuizBowlGame() {
     )
   }
 
+  if (!gameOpen) {
+    return (
+      <div className="flex flex-col items-center gap-3 text-center text-white">
+        <p className="text-lg font-medium">Quiz Bowl is currently closed.</p>
+        <p className="text-sm text-white/60">Check back later — the admin has temporarily paused this game.</p>
+        <Link
+          to="/games"
+          className="mt-2 rounded-full bg-white px-6 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+        >
+          View more games
+        </Link>
+      </div>
+    )
+  }
+
+  if (status === 'intro' && soldOut) {
+    return (
+      <div className="flex flex-col items-center gap-3 text-center text-white">
+        <p className="text-lg font-medium">Quiz Bowl is out of TindaCoupons.</p>
+        <p className="text-sm text-white/60">
+          All prizes for this game have been claimed — check back if more become available.
+        </p>
+        <Link
+          to="/games"
+          className="mt-2 rounded-full bg-white px-6 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+        >
+          View more games
+        </Link>
+      </div>
+    )
+  }
+
   if (status === 'intro') {
     return (
-      <div className="flex w-full max-w-lg flex-col items-center gap-5 rounded-2xl bg-white/5 p-6 text-center text-white sm:p-8">
+      <div className="relative flex w-full max-w-lg flex-col items-center gap-5 rounded-2xl bg-white/5 p-6 text-center text-white sm:p-8">
+        <BackButton className="left-3 top-3" />
         <h2 className="text-2xl font-semibold sm:text-3xl">Quiz Bowl Game!</h2>
         <div className="flex flex-col gap-2 text-sm text-white/70 sm:text-base">
           <p>
             You only need to pass {introThreshold} out of {eligibleCount} questions about our merchants.
           </p>
           <p>There's no time limit, so take your time to get to know the Tindahans.</p>
-          <p>1 ticket coupon for every win. 30-minute cooldown if you don't — while tickets last.</p>
+          <p>1 TindaCoupon for every win. 30-minute cooldown if you don't — while coupons last.</p>
         </div>
         <button
           type="button"
@@ -220,12 +271,25 @@ export function QuizBowlGame() {
 
   if (status === 'won') {
     return (
-      <div className="flex flex-col items-center gap-3 text-center text-white">
-        <p className="text-2xl font-semibold">🎉 You already won a ticket!</p>
-        <p className="text-sm text-white/60">Come back and check the Tickets page for details.</p>
+      <div className="flex flex-col items-center gap-4 text-center text-white">
+        {hasQuizCoupon ? (
+          <>
+            <p className="animate-bounce text-6xl">🎉</p>
+            <div>
+              <p className="text-3xl font-bold">You won a TindaCoupon!</p>
+              <p className="mt-1 text-sm text-white/60">Present this at the tindahan below to claim it.</p>
+            </div>
+            <CouponWinCelebration source="quizBowl" coupons={myCoupons} merchants={merchants} />
+          </>
+        ) : (
+          <>
+            <p className="text-2xl font-semibold">😔 You ran out of TindaCoupon.</p>
+            <p className="text-sm text-white/60">Better luck next time!</p>
+          </>
+        )}
         <Link
           to="/games"
-          className="mt-2 rounded-full bg-white px-6 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+          className="mt-1 rounded-full bg-white/10 px-6 py-2 text-sm font-medium text-white hover:bg-white/20"
         >
           View more games
         </Link>
@@ -285,6 +349,7 @@ export function QuizBowlGame() {
       })
       if (won) {
         await recordQuizBowlWin(user.uid)
+        await awardTindaCoupon(user.uid, 'quizBowl')
         setStatus('won')
       } else {
         setCooldownUntil(now + QUIZ_COOLDOWN_MS)

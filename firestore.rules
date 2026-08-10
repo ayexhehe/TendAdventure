@@ -29,9 +29,73 @@ service cloud.firestore {
       allow write: if isAdminEmail();
     }
 
+    match /config/gameSettings {
+      allow read: if true;
+      allow write: if isAdminEmail();
+
+      // Coupon-award transaction: any signed-in winner may bump their
+      // game's public issued-ticket counter by exactly 1 — nothing else
+      // about game settings can move through these two rules.
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizBowlTicketsIssued'])
+        && request.resource.data.quizBowlTicketsIssued == resource.data.quizBowlTicketsIssued + 1;
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['taskedTicketsIssued'])
+        && request.resource.data.taskedTicketsIssued == resource.data.taskedTicketsIssued + 1;
+    }
+
     match /merchants/{merchantId} {
       allow read: if true;
       allow write: if isAdminEmail();
+
+      // Coupon-award transaction: any signed-in winner may claim one
+      // coupon slot for themselves by incrementing couponsIssued by
+      // exactly 1, and only up to the admin-set couponSupply cap.
+      // Nothing else about the merchant can move through this rule.
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['couponsIssued'])
+        && request.resource.data.couponsIssued == resource.data.couponsIssued + 1
+        && request.resource.data.couponsIssued <= resource.data.couponSupply;
+    }
+
+    // Each merchant's secret redemption code. Never read directly by
+    // players — coupon redemption validates against this via get() in
+    // the tindaCoupons update rule below, which bypasses this doc's own
+    // read rule entirely (a documented Firestore rules behavior).
+    match /merchantCodes/{merchantId} {
+      allow read, write: if isAdminEmail();
+    }
+
+    match /tindaCoupons/{couponId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read: if isAdminEmail();
+
+      // Only ever created for yourself, as an unredeemed coupon — the
+      // award transaction runs on the winning player's own client.
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.redeemed == false
+        && request.resource.data.redeemedAt == null;
+
+      // Redeeming: the coupon owner "presents" it and a seller types in
+      // their tindahan's code. The write is only allowed through if the
+      // entered code actually matches that merchant's real code — the
+      // seller never needs an account, and the real code is never
+      // exposed to the client for this check to work.
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && resource.data.redeemed == false
+        && request.resource.data.redeemed == true
+        && request.resource.data.redeemedAt is number
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redeemed', 'redeemedAt', 'redeemedCode'])
+        && request.resource.data.redeemedCode ==
+           get(/databases/$(database)/documents/merchantCodes/$(resource.data.merchantId)).data.code;
+
+      // Admin-only cleanup — works for both unclaimed and already-claimed
+      // coupons. The client always requires a typed "DELETE" confirmation
+      // before this fires; this rule is the server-side backstop that
+      // only an admin account can ever trigger it at all.
+      allow delete: if isAdminEmail();
     }
 
     match /activities/{activityId} {

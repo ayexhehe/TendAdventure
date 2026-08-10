@@ -52,6 +52,9 @@ export function GameCard({
   cooldownUntil,
   progress,
   completed,
+  closed,
+  soldOut,
+  ticketProgress,
   icon,
 }: {
   to: string
@@ -62,6 +65,9 @@ export function GameCard({
   cooldownUntil?: number | null
   progress?: number
   completed?: boolean
+  closed?: boolean
+  soldOut?: boolean
+  ticketProgress?: { issued: number; total: number }
   icon: ReactNode
 }) {
   const [now, setNow] = useState(() => Date.now())
@@ -74,46 +80,74 @@ export function GameCard({
 
   const cooldownRemaining = cooldownUntil ? cooldownUntil - now : 0
   const inCooldown = cooldownRemaining > 0
+  const showTicketBar = !!ticketProgress && ticketProgress.total > 0
+  const ticketPercent = showTicketBar
+    ? Math.min(100, Math.round((ticketProgress!.issued / ticketProgress!.total) * 100))
+    : 0
 
   const content = (
     <>
-      {completed ? (
-        <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#113DCB]">
-          🏆 Won
-        </span>
-      ) : (
-        <>
-          {comingSoon && (
-            <span className="absolute right-4 top-4 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">
-              Coming soon
-            </span>
-          )}
-          {continueAvailable && (
-            <span className="absolute right-4 top-4 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-              Continue
-            </span>
-          )}
-          {inCooldown && (
-            <span className="absolute right-4 top-4 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-              Available in {formatCooldown(cooldownRemaining)}
-            </span>
-          )}
-        </>
-      )}
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
-        {typeof progress === 'number' && (
-          <div className="absolute" style={{ inset: -(RING_SIZE - 48) / 2 }}>
-            <ProgressRing progress={progress} />
-          </div>
+      <div className="relative flex items-center gap-4">
+        {completed ? (
+          <span className="absolute right-0 top-0 flex items-center gap-1 rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#113DCB]">
+            🏆 Won
+          </span>
+        ) : closed ? (
+          <span className="absolute right-0 top-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">
+            Closed
+          </span>
+        ) : soldOut ? (
+          <span className="absolute right-0 top-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">
+            🎟️ Sold out
+          </span>
+        ) : (
+          <>
+            {comingSoon && (
+              <span className="absolute right-0 top-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">
+                Coming soon
+              </span>
+            )}
+            {continueAvailable && (
+              <span className="absolute right-0 top-0 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                Continue
+              </span>
+            )}
+            {inCooldown && (
+              <span className="absolute right-0 top-0 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                Available in {formatCooldown(cooldownRemaining)}
+              </span>
+            )}
+          </>
         )}
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white">
-          {icon}
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
+          {typeof progress === 'number' && (
+            <div className="absolute" style={{ inset: -(RING_SIZE - 48) / 2 }}>
+              <ProgressRing progress={progress} />
+            </div>
+          )}
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white">
+            {icon}
+          </div>
+        </div>
+        <div>
+          <h3 className="font-semibold text-white">{title}</h3>
+          <p className="text-sm text-white/60">{description}</p>
         </div>
       </div>
-      <div>
-        <h3 className="font-semibold text-white">{title}</h3>
-        <p className="text-sm text-white/60">{description}</p>
-      </div>
+
+      {showTicketBar && (
+        <div className="mt-4 flex flex-col gap-1">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-amber-400 transition-[width] duration-500"
+              style={{ width: `${ticketPercent}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-white/50">
+            🎟️ {ticketProgress!.issued} / {ticketProgress!.total} TindaCoupons claimed
+          </p>
+        </div>
+      )}
     </>
   )
 
@@ -121,8 +155,32 @@ export function GameCard({
     return (
       <div
         aria-disabled="true"
-        title="You've already won this game — ask an admin to reset it to play again."
-        className="relative flex cursor-not-allowed items-center gap-4 rounded-2xl bg-white/5 p-5 opacity-70 ring-1 ring-amber-400/30"
+        title="You've already won this game — please wait for the next wave."
+        className="relative flex cursor-not-allowed flex-col rounded-2xl bg-white/5 p-5 opacity-70 ring-1 ring-amber-400/30"
+      >
+        {content}
+      </div>
+    )
+  }
+
+  if (closed) {
+    return (
+      <div
+        aria-disabled="true"
+        title="This game is temporarily closed by the admin."
+        className="relative flex cursor-not-allowed flex-col rounded-2xl bg-white/5 p-5 opacity-60"
+      >
+        {content}
+      </div>
+    )
+  }
+
+  if (soldOut) {
+    return (
+      <div
+        aria-disabled="true"
+        title="All TindaCoupons for this game have been claimed."
+        className="relative flex cursor-not-allowed flex-col rounded-2xl bg-white/5 p-5 opacity-60"
       >
         {content}
       </div>
@@ -132,7 +190,7 @@ export function GameCard({
   return (
     <Link
       to={to}
-      className={`relative flex items-center gap-4 rounded-2xl p-5 transition ${
+      className={`relative flex flex-col rounded-2xl p-5 transition ${
         comingSoon ? 'bg-white/5 hover:bg-white/10' : 'bg-white/10 hover:bg-white/15'
       }`}
     >

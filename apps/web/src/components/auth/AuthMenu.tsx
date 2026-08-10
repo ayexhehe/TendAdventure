@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { signOut, sendEmailVerification } from 'firebase/auth'
 import { useAuth } from '../../hooks/useAuth'
 import { auth } from '../../lib/firebase'
 import { getInitials } from '../../lib/initials'
+import { subscribeToMyCoupons } from '../../lib/tindaCoupons'
 
 function VerificationBadge({ verified }: { verified: boolean }) {
   return (
@@ -31,6 +32,14 @@ function UserMenu() {
   const { user, userDoc } = useAuth()
   const [open, setOpen] = useState(false)
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [unredeemedCoupons, setUnredeemedCoupons] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    return subscribeToMyCoupons(user.uid, (coupons) => {
+      setUnredeemedCoupons(coupons.filter((c) => !c.redeemed).length)
+    })
+  }, [user])
 
   if (!user) return null
 
@@ -112,9 +121,14 @@ function UserMenu() {
             <Link
               to="/tickets"
               onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-white hover:bg-white/10"
+              className="flex items-center justify-between px-4 py-2 text-white hover:bg-white/10"
             >
-              Tickets
+              TindaCoupon
+              {unredeemedCoupons > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[11px] font-bold text-[#113DCB]">
+                  {unredeemedCoupons}
+                </span>
+              )}
             </Link>
             <button
               type="button"

@@ -3,9 +3,40 @@ import { resetAllCooldowns, resetAllPlayers } from '../../lib/quizBowlAdmin'
 import { resetAllTaskedPlayers } from '../../lib/taskedAdmin'
 import { subscribeToQuizBowlSettings, setNoRepeatQuestions } from '../../lib/quizBowlSettings'
 import { subscribeToTaskedSettings, saveTaskedSettings } from '../../lib/taskedSettings'
+import { subscribeToGameSettings, saveGameSettings } from '../../lib/gameSettings'
+import { subscribeToMerchants } from '../../lib/merchants'
 
 const inputClass = 'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
+
+function Switch({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${
+        checked ? 'bg-emerald-500' : 'bg-white/15'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition ${
+          checked ? 'left-5.5' : 'left-0.5'
+        }`}
+      />
+    </button>
+  )
+}
 
 type ActionKey = 'cooldown' | 'players' | 'tasked'
 
@@ -30,6 +61,121 @@ export function GeneralTab() {
       await setNoRepeatQuestions(next)
     } finally {
       setSavingToggle(false)
+    }
+  }
+
+  const [gameSettingsLoaded, setGameSettingsLoaded] = useState(false)
+  const [quizBowlOpen, setQuizBowlOpen] = useState(true)
+  const [savingQuizOpen, setSavingQuizOpen] = useState(false)
+  const [quizBowlTicketsTotal, setQuizBowlTicketsTotal] = useState('0')
+  const [savingQuizTickets, setSavingQuizTickets] = useState(false)
+  const [quizTicketsSaved, setQuizTicketsSaved] = useState(false)
+  const [taskedOpen, setTaskedOpen] = useState(true)
+  const [savingTaskedOpen, setSavingTaskedOpen] = useState(false)
+  const [taskedTicketsTotal, setTaskedTicketsTotal] = useState('0')
+  const [savingTaskedTickets, setSavingTaskedTickets] = useState(false)
+  const [taskedTicketsSaved, setTaskedTicketsSaved] = useState(false)
+  const [quizTicketsError, setQuizTicketsError] = useState<string | null>(null)
+  const [taskedTicketsError, setTaskedTicketsError] = useState<string | null>(null)
+  const [merchantCouponSupply, setMerchantCouponSupply] = useState(0)
+
+  useEffect(
+    () =>
+      subscribeToMerchants((merchants) => {
+        setMerchantCouponSupply(merchants.reduce((sum, m) => sum + (m.couponSupply ?? 0), 0))
+      }),
+    [],
+  )
+
+  useEffect(
+    () =>
+      subscribeToGameSettings((s) => {
+        if (!gameSettingsLoaded) {
+          setQuizBowlOpen(s?.quizBowlOpen ?? true)
+          setTaskedOpen(s?.taskedOpen ?? true)
+          setQuizBowlTicketsTotal(String(s?.quizBowlTicketsTotal ?? 0))
+          setTaskedTicketsTotal(String(s?.taskedTicketsTotal ?? 0))
+          setGameSettingsLoaded(true)
+
+          // First time this doc is ever touched: make sure the public
+          // issued-ticket counters exist as real numbers, not just
+          // missing fields — the coupon-award transaction's rules-based
+          // increment requires a real number to add 1 to.
+          if (!s) {
+            void saveGameSettings({
+              quizBowlOpen: true,
+              taskedOpen: true,
+              quizBowlTicketsTotal: 0,
+              quizBowlTicketsIssued: 0,
+              taskedTicketsTotal: 0,
+              taskedTicketsIssued: 0,
+            })
+          }
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  const handleToggleQuizBowlOpen = async () => {
+    const next = !quizBowlOpen
+    setSavingQuizOpen(true)
+    setQuizBowlOpen(next)
+    try {
+      await saveGameSettings({ quizBowlOpen: next })
+    } finally {
+      setSavingQuizOpen(false)
+    }
+  }
+
+  const handleToggleTaskedOpen = async () => {
+    const next = !taskedOpen
+    setSavingTaskedOpen(true)
+    setTaskedOpen(next)
+    try {
+      await saveGameSettings({ taskedOpen: next })
+    } finally {
+      setSavingTaskedOpen(false)
+    }
+  }
+
+  const handleSaveQuizTickets = async () => {
+    setQuizTicketsError(null)
+    setQuizTicketsSaved(false)
+    const next = Math.max(0, Number(quizBowlTicketsTotal) || 0)
+    const other = Math.max(0, Number(taskedTicketsTotal) || 0)
+    if (next > 0 && next + other > merchantCouponSupply) {
+      setQuizTicketsError(
+        `Quiz Bowl (${next}) + taSKed (${other}) = ${next + other}, which is more than the ${merchantCouponSupply} coupons allocated across merchants.`,
+      )
+      return
+    }
+    setSavingQuizTickets(true)
+    try {
+      await saveGameSettings({ quizBowlTicketsTotal: next })
+      setQuizTicketsSaved(true)
+    } finally {
+      setSavingQuizTickets(false)
+    }
+  }
+
+  const handleSaveTaskedTickets = async () => {
+    setTaskedTicketsError(null)
+    setTaskedTicketsSaved(false)
+    const next = Math.max(0, Number(taskedTicketsTotal) || 0)
+    const other = Math.max(0, Number(quizBowlTicketsTotal) || 0)
+    if (next > 0 && next + other > merchantCouponSupply) {
+      setTaskedTicketsError(
+        `taSKed (${next}) + Quiz Bowl (${other}) = ${next + other}, which is more than the ${merchantCouponSupply} coupons allocated across merchants.`,
+      )
+      return
+    }
+    setSavingTaskedTickets(true)
+    try {
+      await saveGameSettings({ taskedTicketsTotal: next })
+      setTaskedTicketsSaved(true)
+    } finally {
+      setSavingTaskedTickets(false)
     }
   }
 
@@ -105,6 +251,53 @@ export function GeneralTab() {
           These controls only affect Quiz Bowl. Once a player wins, they're normally locked out of
           playing again — use these tools to override that.
         </p>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Game open</p>
+              <p className="text-xs text-white/50">When off, players can't start or continue Quiz Bowl.</p>
+            </div>
+            <Switch
+              checked={quizBowlOpen}
+              onChange={() => void handleToggleQuizBowlOpen()}
+              disabled={savingQuizOpen}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass}>TindaCoupon allocation</label>
+              <input
+                type="number"
+                min={0}
+                value={quizBowlTicketsTotal}
+                onChange={(e) => setQuizBowlTicketsTotal(e.target.value)}
+                placeholder="0"
+                className={`${inputClass} w-32`}
+              />
+              <p className="text-xs text-white/40">
+                Total coupons Quiz Bowl can ever hand out. 0 = unlimited (per-merchant supply still
+                applies). Combined with taSKed's allocation, can't exceed{' '}
+                {merchantCouponSupply} (the total across all merchants).
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void handleSaveQuizTickets()}
+                disabled={savingQuizTickets}
+                className="rounded-full bg-white px-5 py-2 text-xs font-medium text-[#113DCB] hover:bg-white/90 disabled:opacity-50"
+              >
+                {savingQuizTickets ? 'Saving…' : 'Save'}
+              </button>
+              {quizTicketsSaved && <span className="text-xs text-emerald-300">Saved.</span>}
+            </div>
+          </div>
+          {quizTicketsError && <p className="text-xs text-red-300">{quizTicketsError}</p>}
+        </div>
 
         <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -198,22 +391,7 @@ export function GeneralTab() {
                 repeat is unavoidable.
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={noRepeat}
-              onClick={() => void handleToggleNoRepeat()}
-              disabled={savingToggle}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${
-                noRepeat ? 'bg-emerald-500' : 'bg-white/15'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition ${
-                  noRepeat ? 'left-5.5' : 'left-0.5'
-                }`}
-              />
-            </button>
+            <Switch checked={noRepeat} onChange={() => void handleToggleNoRepeat()} disabled={savingToggle} />
           </div>
         </div>
       </section>
@@ -224,6 +402,53 @@ export function GeneralTab() {
           Task 1 shares a personal link with each player that opens our own invite page instantly
           — no redirect. Task 2's hashtags are shown to players as instructions.
         </p>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Game open</p>
+              <p className="text-xs text-white/50">When off, players can't start or continue taSKed.</p>
+            </div>
+            <Switch
+              checked={taskedOpen}
+              onChange={() => void handleToggleTaskedOpen()}
+              disabled={savingTaskedOpen}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass}>TindaCoupon allocation</label>
+              <input
+                type="number"
+                min={0}
+                value={taskedTicketsTotal}
+                onChange={(e) => setTaskedTicketsTotal(e.target.value)}
+                placeholder="0"
+                className={`${inputClass} w-32`}
+              />
+              <p className="text-xs text-white/40">
+                Total coupons taSKed can ever hand out. 0 = unlimited (per-merchant supply still
+                applies). Combined with Quiz Bowl's allocation, can't exceed {merchantCouponSupply}{' '}
+                (the total across all merchants).
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void handleSaveTaskedTickets()}
+                disabled={savingTaskedTickets}
+                className="rounded-full bg-white px-5 py-2 text-xs font-medium text-[#113DCB] hover:bg-white/90 disabled:opacity-50"
+              >
+                {savingTaskedTickets ? 'Saving…' : 'Save'}
+              </button>
+              {taskedTicketsSaved && <span className="text-xs text-emerald-300">Saved.</span>}
+            </div>
+          </div>
+          {taskedTicketsError && <p className="text-xs text-red-300">{taskedTicketsError}</p>}
+        </div>
 
         <div className="mt-5 flex flex-col gap-4 border-t border-white/10 pt-5">
           <div className="flex flex-col gap-1.5">

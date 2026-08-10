@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import type { TaskedEntrantDoc, TaskedSettingsDoc } from '@tindadventure/shared'
+import type { GameSettingsDoc, TaskedEntrantDoc, TaskedSettingsDoc } from '@tindadventure/shared'
 import { useAuth } from '../../hooks/useAuth'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
+import { BackButton } from '../../components/BackButton'
+import { CouponWinCelebration } from '../../components/tindaCoupons/CouponWinCelebration'
 import { submitMessage } from '../../lib/messageWall'
 import { recordTaskedWin } from '../../lib/users'
+import {
+  awardTindaCoupon,
+  isGameSoldOut,
+  subscribeToMyCoupons,
+  type TindaCouponWithId,
+} from '../../lib/tindaCoupons'
 import { subscribeToTaskedSettings } from '../../lib/taskedSettings'
+import { subscribeToGameSettings } from '../../lib/gameSettings'
+import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
 import {
   TASKED_TASK1_TARGET,
   completeAllTasksIfReady,
@@ -75,6 +85,21 @@ export function TaskedGame() {
   const [task3Text, setTask3Text] = useState('')
   const [task3Error, setTask3Error] = useState<string | null>(null)
   const [task3Submitting, setTask3Submitting] = useState(false)
+  const [gameSettings, setGameSettings] = useState<GameSettingsDoc | null>(null)
+  const [merchants, setMerchants] = useState<MerchantWithId[]>([])
+  const [myCoupons, setMyCoupons] = useState<TindaCouponWithId[]>([])
+
+  useEffect(() => subscribeToGameSettings(setGameSettings), [])
+  useEffect(() => subscribeToMerchants(setMerchants), [])
+
+  useEffect(() => {
+    if (!user) return
+    return subscribeToMyCoupons(user.uid, setMyCoupons)
+  }, [user])
+
+  const gameOpen = gameSettings?.taskedOpen ?? true
+  const soldOut = isGameSoldOut('tasked', gameSettings, merchants)
+  const hasTaskedCoupon = myCoupons.some((c) => c.source === 'tasked')
 
   useEffect(() => {
     if (!user) return
@@ -127,6 +152,7 @@ export function TaskedGame() {
     void (async () => {
       await completeAllTasksIfReady(user.uid, entrant)
       await recordTaskedWin(user.uid).catch(() => {})
+      await awardTindaCoupon(user.uid, 'tasked').catch(() => {})
     })()
   }, [user, entrant, allDone])
 
@@ -138,16 +164,61 @@ export function TaskedGame() {
     )
   }
 
-  if (entrant.allTasksCompletedAt) {
+  if (!gameOpen) {
     return (
       <div className="flex flex-col items-center gap-3 text-center text-white">
-        <p className="text-2xl font-semibold">🎉 You completed taSKed!</p>
+        <p className="text-lg font-medium">taSKed is currently closed.</p>
+        <p className="text-sm text-white/60">Check back later — the admin has temporarily paused this game.</p>
+        <Link
+          to="/games"
+          className="mt-2 rounded-full bg-white px-6 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+        >
+          View more games
+        </Link>
+      </div>
+    )
+  }
+
+  const hasStarted = !!(entrant.task1CompletedAt || entrant.task2CompletedAt || entrant.task3CompletedAt)
+
+  if (!hasStarted && !entrant.allTasksCompletedAt && soldOut) {
+    return (
+      <div className="flex flex-col items-center gap-3 text-center text-white">
+        <p className="text-lg font-medium">taSKed is out of TindaCoupons.</p>
         <p className="text-sm text-white/60">
-          A ticket has been awarded to your account. Check the Tickets page for details.
+          All prizes for this game have been claimed — check back if more become available.
         </p>
         <Link
           to="/games"
           className="mt-2 rounded-full bg-white px-6 py-2 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+        >
+          View more games
+        </Link>
+      </div>
+    )
+  }
+
+  if (entrant.allTasksCompletedAt) {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center text-white">
+        {hasTaskedCoupon ? (
+          <>
+            <p className="animate-bounce text-6xl">🎉</p>
+            <div>
+              <p className="text-3xl font-bold">You completed taSKed!</p>
+              <p className="mt-1 text-sm text-white/60">Present this at the tindahan below to claim it.</p>
+            </div>
+            <CouponWinCelebration source="tasked" coupons={myCoupons} merchants={merchants} />
+          </>
+        ) : (
+          <>
+            <p className="text-2xl font-semibold">😔 You ran out of TindaCoupon.</p>
+            <p className="text-sm text-white/60">Better luck next time!</p>
+          </>
+        )}
+        <Link
+          to="/games"
+          className="mt-1 rounded-full bg-white/10 px-6 py-2 text-sm font-medium text-white hover:bg-white/20"
         >
           View more games
         </Link>
@@ -222,9 +293,10 @@ export function TaskedGame() {
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-5 text-white">
-      <div className="text-center">
+      <div className="relative text-center">
+        <BackButton />
         <h1 className="text-2xl font-semibold sm:text-3xl">You are TaSKed!</h1>
-        <p className="mt-2 text-sm text-white/60">Complete all 3 tasks below to win a ticket.</p>
+        <p className="mt-2 text-sm text-white/60">Complete all 3 tasks below to win a TindaCoupon.</p>
       </div>
 
       <TaskCard
