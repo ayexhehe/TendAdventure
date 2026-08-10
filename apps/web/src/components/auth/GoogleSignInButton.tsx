@@ -1,29 +1,14 @@
-import { useEffect, useState } from 'react'
-import {
-  GoogleAuthProvider,
-  getRedirectResult,
-  signInWithPopup,
-  signInWithRedirect,
-} from 'firebase/auth'
+import { useState } from 'react'
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '../../lib/firebase'
 import { friendlyAuthError } from '../../lib/authErrors'
 
 const provider = new GoogleAuthProvider()
 
-// Popup-based OAuth is unreliable on mobile browsers (iOS Safari in
-// particular silently fails it due to ITP/third-party storage
-// restrictions), so mobile falls back to a full-page redirect flow.
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-
 export function GoogleSignInButton() {
   const firebaseAuth = auth
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    if (!firebaseAuth) return
-    getRedirectResult(firebaseAuth).catch((err) => setError(friendlyAuthError(err)))
-  }, [firebaseAuth])
 
   if (!firebaseAuth) {
     return (
@@ -42,13 +27,10 @@ export function GoogleSignInButton() {
     setError(null)
     setSubmitting(true)
     try {
-      if (isMobile) {
-        await signInWithRedirect(firebaseAuth, provider)
-      } else {
-        await signInWithPopup(firebaseAuth, provider)
-      }
+      await signInWithPopup(firebaseAuth, provider)
     } catch (err) {
       setError(friendlyAuthError(err))
+    } finally {
       setSubmitting(false)
     }
   }
