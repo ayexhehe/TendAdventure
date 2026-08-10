@@ -20,10 +20,11 @@ import {
 
 const inputClass = 'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 
-// Invite links are meant to be opened by someone else's phone, so they
-// must always point at the live site — never whatever origin (localhost,
-// a preview deploy) happened to generate them.
-const SITE_ORIGIN = 'https://tend-adventure-web.vercel.app'
+// Invite links are meant to be opened by someone else's phone, so in
+// production they must always point at the live site regardless of what
+// origin generated them. In dev, fall back to the actual local origin so
+// the invite flow (/i/:slug) is testable against localhost.
+const SITE_ORIGIN = import.meta.env.DEV ? window.location.origin : 'https://tend-adventure-web.vercel.app'
 
 function TaskCard({
   step,
@@ -84,7 +85,8 @@ export function TaskedGame() {
     void (async () => {
       if (!ensured.current) {
         ensured.current = true
-        await ensureEntrant(user.uid)
+        const displayName = userDoc?.displayName || user.displayName || 'A friend'
+        await ensureEntrant(user.uid, displayName)
       }
       if (cancelled) return
       unsubscribe = subscribeToEntrant(user.uid, (e) => {
@@ -97,6 +99,9 @@ export function TaskedGame() {
       cancelled = true
       unsubscribe?.()
     }
+    // displayName is only read once, guarded by ensured.current — it
+    // shouldn't re-run this effect if the profile changes later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   useEffect(() => {

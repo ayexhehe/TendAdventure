@@ -113,11 +113,14 @@ export interface TaskedEntrantDoc {
   allTasksCompletedAt: number | null
 }
 
-// Public slug -> uid pointer, so the anonymous /i/:slug redirect page can
-// resolve whose personal invite link was clicked without needing read
-// access to the entrant's private progress doc.
+// Public slug -> uid pointer, so the anonymous /i/:slug invite page can
+// resolve (and personalize with) whose link was opened, without any read
+// access to that player's actual progress doc. `displayName` is a
+// denormalized copy so the invite page doesn't need a second read (and
+// doesn't need permission to read the owner's private users/{uid} doc).
 export interface TaskedSlugDoc {
   uid: string
+  displayName: string
   createdAt: number
 }
 

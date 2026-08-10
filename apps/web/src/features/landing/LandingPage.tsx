@@ -130,8 +130,7 @@ export function LandingPage() {
             <GameCard
               to="/tasked"
               title="taSKed"
-              description="A new challenge is on its way."
-              comingSoon
+              description="Complete 3 tasks to win a ticket."
               icon={<TaskedIcon />}
             />
           </section>

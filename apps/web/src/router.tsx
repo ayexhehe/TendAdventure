@@ -6,7 +6,7 @@ import { CalendarPage } from './features/calendar/CalendarPage'
 import { GamesPage } from './features/games/GamesPage'
 import { QuizBowlPage } from './features/quizbowl/QuizBowlPage'
 import { TaskedPage } from './features/tasked/TaskedPage'
-import { InviteRedirectPage } from './features/tasked/InviteRedirectPage'
+import { InvitePage } from './features/tasked/InvitePage'
 import { MessageWallPage } from './features/messagewall/MessageWallPage'
 import { AdminPage } from './features/admin/AdminPage'
 import { ProfilePage } from './features/profile/ProfilePage'
@@ -22,7 +22,7 @@ export const router = createBrowserRouter([
   { path: '/games', element: <GamesPage /> },
   { path: '/quizbowl', element: <QuizBowlPage /> },
   { path: '/tasked', element: <TaskedPage /> },
-  { path: '/i/:slug', element: <InviteRedirectPage /> },
+  { path: '/i/:slug', element: <InvitePage /> },
   { path: '/wall', element: <MessageWallPage /> },
   { path: '/admin/*', element: <AdminPage /> },
   { path: '/profile', element: <ProfilePage /> },

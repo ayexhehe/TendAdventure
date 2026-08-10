@@ -9,7 +9,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import type { TaskedEntrantDoc } from '@tindadventure/shared'
+import type { TaskedEntrantDoc, TaskedSlugDoc } from '@tindadventure/shared'
 import { db } from './firebase'
 
 export const TASKED_TASK1_TARGET = 3
@@ -32,7 +32,7 @@ function blankEntrant(uid: string, slug: string): TaskedEntrantDoc {
   }
 }
 
-export async function ensureEntrant(uid: string): Promise<TaskedEntrantDoc> {
+export async function ensureEntrant(uid: string, displayName: string): Promise<TaskedEntrantDoc> {
   if (!db) return blankEntrant(uid, '')
 
   const ref = doc(db, 'taskedEntrants', uid)
@@ -41,7 +41,11 @@ export async function ensureEntrant(uid: string): Promise<TaskedEntrantDoc> {
 
   const entrant = blankEntrant(uid, generateSlug())
   await setDoc(ref, entrant)
-  await setDoc(doc(db, 'taskedSlugs', entrant.personalShareSlug), { uid, createdAt: Date.now() })
+  await setDoc(doc(db, 'taskedSlugs', entrant.personalShareSlug), {
+    uid,
+    displayName,
+    createdAt: Date.now(),
+  })
   return entrant
 }
 
@@ -57,10 +61,10 @@ export function subscribeToEntrant(uid: string, onChange: (entrant: TaskedEntran
   )
 }
 
-export async function resolveSlugOwner(slug: string): Promise<string | null> {
+export async function resolveSlug(slug: string): Promise<TaskedSlugDoc | null> {
   if (!db) return null
   const snapshot = await getDoc(doc(db, 'taskedSlugs', slug))
-  return snapshot.exists() ? (snapshot.data().uid as string) : null
+  return snapshot.exists() ? (snapshot.data() as TaskedSlugDoc) : null
 }
 
 export async function logInviteClick(ownerUid: string, visitorId: string) {

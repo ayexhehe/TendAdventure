@@ -209,13 +209,15 @@ export function GeneralTab() {
       <section className="rounded-2xl bg-white/5 p-6">
         <h2 className="text-lg font-semibold">taSKed</h2>
         <p className="mt-1 text-sm text-white/60">
-          Task 1 shares a personal link with each player that redirects here once clicked — set
-          where it should send friends. Task 2's hashtags are shown to players as instructions.
+          Task 1 shares a personal link with each player that opens our own invite page — friends
+          land there instantly instead of waiting on a redirect. Optionally point them somewhere
+          else too (e.g. a Facebook group) below. Task 2's hashtags are shown to players as
+          instructions.
         </p>
 
         <div className="mt-5 flex flex-col gap-4 border-t border-white/10 pt-5">
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Task 1 invite link (where friends land)</label>
+            <label className={labelClass}>Optional extra link shown on the invite page</label>
             <input
               type="url"
               value={inviteLink}
