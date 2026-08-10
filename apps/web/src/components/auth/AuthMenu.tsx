@@ -141,7 +141,7 @@ export function AuthMenu() {
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="hidden gap-2 md:flex">
       <Link
         to="/login?mode=signin"
         className="rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
