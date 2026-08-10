@@ -22,7 +22,7 @@ function CardContent({ merchant }: { merchant: MerchantWithId }) {
             {merchant.tindaZone}
           </p>
         )}
-        <h3 className="font-semibold text-white">{merchant.name}</h3>
+        <h3 className="line-clamp-1 font-semibold text-white">{merchant.name}</h3>
         {merchant.product && <p className="line-clamp-1 text-sm text-white/60">{merchant.product}</p>}
       </div>
     </div>

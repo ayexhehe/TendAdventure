@@ -71,7 +71,14 @@ export function LandingPage() {
       />
     )),
     ...(merchants.length > MERCHANT_PREVIEW_LIMIT
-      ? [<ViewAllCard key="view-all" to="/merchants" label="View All Merchants" />]
+      ? [
+          <ViewAllCard
+            key="view-all"
+            to="/merchants"
+            label="Discover More Merchants"
+            previewImageURLs={merchants.slice(MERCHANT_PREVIEW_LIMIT).map((m) => m.imageURL)}
+          />,
+        ]
       : []),
   ]
 
@@ -84,7 +91,16 @@ export function LandingPage() {
       />
     )),
     ...(upcomingActivities.length > ACTIVITY_PREVIEW_LIMIT
-      ? [<ViewAllCard key="view-all" to="/calendar" label="View Full Calendar" />]
+      ? [
+          <ViewAllCard
+            key="view-all"
+            to="/calendar"
+            label="Discover More Activities"
+            previewImageURLs={upcomingActivities
+              .slice(ACTIVITY_PREVIEW_LIMIT)
+              .map((a) => a.imageURLs[0])}
+          />,
+        ]
       : []),
   ]
 

@@ -2,24 +2,31 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAdminEmail() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower()
+           in firestore.get(/databases/(default)/documents/config/adminEmails).data.emails;
+    }
+
     match /merchants/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdminEmail();
     }
 
     match /activities/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdminEmail();
     }
 
     match /banners/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdminEmail();
     }
 
     match /about/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdminEmail();
     }
   }
 }

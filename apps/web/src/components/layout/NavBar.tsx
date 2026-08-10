@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 
 const NAV_LINKS = [
   { to: '/', label: 'Home' },
@@ -14,6 +15,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function NavBar() {
   const [open, setOpen] = useState(false)
+  const { user } = useAuth()
 
   return (
     <>
@@ -63,6 +65,25 @@ export function NavBar() {
                   {link.label}
                 </NavLink>
               ))}
+              {!user && (
+                <>
+                  <div className="my-1 border-t border-white/10" />
+                  <Link
+                    to="/login?mode=signin"
+                    onClick={() => setOpen(false)}
+                    className="block px-4 py-2 text-white/70 hover:bg-white/10"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/login?mode=register"
+                    onClick={() => setOpen(false)}
+                    className="block px-4 py-2 font-medium text-white hover:bg-white/10"
+                  >
+                    Register
+                  </Link>
+                </>
+              )}
             </div>
           </>
         )}

@@ -34,7 +34,7 @@ function CardContent({ activity }: { activity: ActivityWithId }) {
             </span>
           )}
         </div>
-        <h3 className="font-semibold text-white">{activity.title}</h3>
+        <h3 className="line-clamp-1 font-semibold text-white">{activity.title}</h3>
         {activity.location && (
           <p className="line-clamp-1 text-sm text-white/60">{activity.location}</p>
         )}
