@@ -29,7 +29,12 @@ export function PaginatedCardGrid({
     <div className="flex flex-col gap-4">
       <div className={gridClassName}>
         {cards.map((card, i) => (
-          <div key={i} className={i === index ? 'block' : 'hidden sm:block'}>
+          <div
+            key={i}
+            className={`col-start-1 row-start-1 sm:col-auto sm:row-auto sm:visible sm:opacity-100 sm:pointer-events-auto ${
+              i === index ? 'visible opacity-100' : 'invisible opacity-0 pointer-events-none'
+            }`}
+          >
             {card}
           </div>
         ))}

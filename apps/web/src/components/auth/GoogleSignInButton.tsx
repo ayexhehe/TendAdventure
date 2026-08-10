@@ -40,16 +40,15 @@ export function GoogleSignInButton() {
 
   const handleClick = async () => {
     setError(null)
-    if (isMobile) {
-      await signInWithRedirect(firebaseAuth, provider)
-      return
-    }
     setSubmitting(true)
     try {
-      await signInWithPopup(firebaseAuth, provider)
+      if (isMobile) {
+        await signInWithRedirect(firebaseAuth, provider)
+      } else {
+        await signInWithPopup(firebaseAuth, provider)
+      }
     } catch (err) {
       setError(friendlyAuthError(err))
-    } finally {
       setSubmitting(false)
     }
   }
