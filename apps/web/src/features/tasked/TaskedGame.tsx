@@ -227,7 +227,18 @@ export function TaskedGame() {
   }
 
   const shareLink = `${SITE_ORIGIN}/i/${entrant.personalShareSlug}`
-  const shareText = 'Join me for Linggo ng Kabataan! Tap the link to check it out:'
+  const shareText = [
+    '🎉 FROM ONE YOUTH TO ANOTHER — GUADAHIUSA NA! 💙',
+    '',
+    'Kauban ang SK Guadalupe Council sa pag-celebrate sa Linggo ng Kabataan 2026! ✨',
+    '',
+    'Naay games 🎮, youth stalls 🛍️, TindaCoupon prizes 🎟️, ug live music 🎶 from our young local talents! 🎤🔥',
+    '',
+    'Bangon na, og kaligo na dira! 😂',
+    'Kuyog ta, magka-kita kita ta diri! 🤙💙',
+    '',
+    '🎶 GUADAHIUSA — Youth Arts and Music Festival 2026',
+  ].join('\n')
   const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
   const handleCopyLink = async () => {
@@ -239,7 +250,7 @@ export function TaskedGame() {
   const handleShare = async () => {
     if (canNativeShare) {
       try {
-        await navigator.share({ title: 'Linggo ng Kabataan', text: shareText, url: shareLink })
+        await navigator.share({ title: 'SK Guadalupe – Linggo ng Kabataan', text: shareText, url: shareLink })
       } catch {
         // user backed out of the share sheet — nothing to do
       }
