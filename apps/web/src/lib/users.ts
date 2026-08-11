@@ -22,12 +22,10 @@ export function subscribeToUsers(onChange: (users: UserWithId[]) => void) {
   )
 }
 
-export async function recordQuizBowlWin(uid: string) {
-  if (!db) return
-  await updateDoc(doc(db, 'users', uid), {
-    quizBowl: { hasWon: true, wonAt: Date.now() },
-  })
-}
+// There is no client-side recordQuizBowlWin — a Quiz Bowl win is decided
+// server-side, in the submitQuizAnswer Cloud Function (Admin SDK), which
+// also records it on this profile. The Firestore rules no longer grant
+// any client a path to flip quizBowl.hasWon directly.
 
 export async function recordTaskedWin(uid: string) {
   if (!db) return

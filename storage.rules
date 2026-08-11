@@ -22,9 +22,17 @@ service firebase.storage {
       allow write: if request.auth != null;
     }
 
+    // Admin-only, unlike the other upload paths above (which allow any
+    // signed-in user — a pre-existing, broader pattern left as-is here).
+    // Performer photos are tied to a live vote, so this path is tightened
+    // deliberately: cross-references the same admin allowlist Firestore
+    // rules use, via Storage's cross-service firestore.get().
     match /votingPerformers/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() in
+           firestore.get(/databases/(default)/documents/config/adminEmails).data.emails;
     }
   }
 }

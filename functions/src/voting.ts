@@ -2,7 +2,14 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
-import type { GameSettingsDoc, MerchantDoc, TindaCouponDoc, VoteDoc } from '@tindadventure/shared'
+import type {
+  GameSettingsDoc,
+  MerchantDoc,
+  TindaCouponDoc,
+  VoteDoc,
+  VotingCategoryDoc,
+  VotingPerformerDoc,
+} from '@tindadventure/shared'
 
 // A voting round is short and live (e.g. a 10-minute "People's Choice"
 // segment), so the gap before the next drop scales to whatever's actually
@@ -32,16 +39,20 @@ function shuffle<T>(items: T[]): T[] {
   return copy
 }
 
-// Increment a performer's public vote tally server-side, on vote
-// creation — never trusted to the client, so the count can't be gamed by
-// a client-side increment rule.
+// Increment a performer's vote tally server-side, on vote creation —
+// never trusted to the client, so the count can't be gamed by a
+// client-side increment rule. Written to the admin-only votingResults
+// collection (not the public votingPerformers doc) so results stay
+// sealed from voters while a round is live. `set(..., { merge: true })`
+// rather than `update()` because this is the first write to a given
+// performer's result doc — it doesn't exist yet until their first vote.
 export const onVoteCreated = onDocumentCreated('votes/{voteId}', async (event) => {
   const snap = event.data
   if (!snap) return
   const vote = snap.data() as VoteDoc
   await getFirestore()
-    .doc(`votingPerformers/${vote.performerId}`)
-    .update({ voteCount: FieldValue.increment(1) })
+    .doc(`votingResults/${vote.performerId}`)
+    .set({ voteCount: FieldValue.increment(1) }, { merge: true })
 })
 
 // Atomically checks whether a round is live and a drop is due, and if so,
@@ -79,15 +90,50 @@ async function claimDropSlot(
   })
 }
 
+// Eligibility requires having voted in every currently-active category —
+// not just one — so the raffle rewards full participation rather than a
+// single quick tap. "Active" mirrors exactly what a voter's own client
+// considers votable: a non-hidden category that has at least one
+// performer. Re-derived fresh on every drop, so a category added or
+// hidden mid-round immediately changes who counts as fully voted.
 async function pickEligibleVoter(db: FirebaseFirestore.Firestore): Promise<string | null> {
-  const [votesSnap, priorWinnersSnap] = await Promise.all([
-    db.collection('votes').select('uid').get(),
+  const [categoriesSnap, performersSnap, votesSnap, priorWinnersSnap] = await Promise.all([
+    db.collection('votingCategories').get(),
+    db.collection('votingPerformers').select('categoryId').get(),
+    db.collection('votes').select('uid', 'categoryId').get(),
     db.collection('tindaCoupons').where('source', '==', 'voting').select('uid').get(),
   ])
-  const voterUids = [...new Set(votesSnap.docs.map((d) => d.data().uid as string))]
+
+  const categoriesById = new Map(
+    categoriesSnap.docs.map((d) => [d.id, d.data() as VotingCategoryDoc]),
+  )
+  const categoryIdsWithPerformers = new Set(
+    performersSnap.docs.map((d) => (d.data() as VotingPerformerDoc).categoryId),
+  )
+  const activeCategoryIds = [...categoryIdsWithPerformers].filter((id) => {
+    const category = categoriesById.get(id)
+    return category != null && !category.hidden
+  })
+  if (activeCategoryIds.length === 0) return null
+
+  const votedCategoriesByUid = new Map<string, Set<string>>()
+  for (const doc of votesSnap.docs) {
+    const data = doc.data() as { uid: string; categoryId: string }
+    const set = votedCategoriesByUid.get(data.uid) ?? new Set<string>()
+    set.add(data.categoryId)
+    votedCategoriesByUid.set(data.uid, set)
+  }
+
   const excluded = new Set(priorWinnersSnap.docs.map((d) => d.data().uid as string))
-  const eligible = shuffle(voterUids.filter((uid) => !excluded.has(uid)))
-  return eligible[0] ?? null
+
+  const fullyVoted = [...votedCategoriesByUid.entries()]
+    .filter(
+      ([uid, votedCategoryIds]) =>
+        !excluded.has(uid) && activeCategoryIds.every((id) => votedCategoryIds.has(id)),
+    )
+    .map(([uid]) => uid)
+
+  return shuffle(fullyVoted)[0] ?? null
 }
 
 // Same shape as the client's quizBowl/tasked award transaction (try
@@ -114,6 +160,13 @@ async function awardVotingCoupon(db: FirebaseFirestore.Firestore, uid: string): 
       }
 
       const settingsData = settingsSnap.data() as GameSettingsDoc | undefined
+      // Re-check the round is still live at the moment of the actual
+      // award, not just when the drop was originally claimed a moment
+      // ago — closes the gap where an admin hitting "Stop now" in that
+      // brief window could otherwise still result in a coupon going out.
+      const windowEndsAt = settingsData?.votingWindowEndsAt
+      if (windowEndsAt == null || Date.now() >= windowEndsAt) return false
+
       const total = settingsData?.votingTicketsTotal ?? 0
       const issued = settingsData?.votingTicketsIssued ?? 0
       if (total > 0 && issued >= total) return false

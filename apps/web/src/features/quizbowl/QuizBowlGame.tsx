@@ -1,28 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { GameSettingsDoc } from '@tindadventure/shared'
+import type { GameSettingsDoc, QuizBowlAttemptQuestion } from '@tindadventure/shared'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
-import { getAttempt, startAttempt, advanceAttempt, QUIZ_COOLDOWN_MS } from '../../lib/quizBowlAttempts'
-import { getSeenQuestions, recordSeenQuestions } from '../../lib/quizBowlSeenQuestions'
-import { subscribeToQuizBowlSettings } from '../../lib/quizBowlSettings'
+import { getAttempt } from '../../lib/quizBowlAttempts'
+import { startQuizAttempt, submitQuizAnswer } from '../../lib/quizBowlPlay'
 import { subscribeToGameSettings } from '../../lib/gameSettings'
-import { recordQuizBowlWin } from '../../lib/users'
-import { awardTindaCoupon, isGameSoldOut, subscribeToMyCoupons, type TindaCouponWithId } from '../../lib/tindaCoupons'
+import { isGameSoldOut, subscribeToMyCoupons, type TindaCouponWithId } from '../../lib/tindaCoupons'
 import { useAuth } from '../../hooks/useAuth'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
 import { CouponWinCelebration } from '../../components/tindaCoupons/CouponWinCelebration'
-import { buildQuizRound, questionKey, type QuizRoundQuestion } from './buildQuizRound'
 import { formatCooldown } from '../../lib/time'
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D']
+const QUIZ_COOLDOWN_MS = 30 * 60 * 1000
 
 function ClueModal({
   question,
   open,
   onClose,
 }: {
-  question: QuizRoundQuestion
+  question: QuizBowlAttemptQuestion
   open: boolean
   onClose: () => void
 }) {
@@ -82,17 +80,23 @@ export function QuizBowlGame() {
   const [attemptLoading, setAttemptLoading] = useState(true)
   const attemptStarted = useRef(false)
 
-  const [round, setRound] = useState<QuizRoundQuestion[]>([])
+  const [round, setRound] = useState<QuizBowlAttemptQuestion[]>([])
   const [index, setIndex] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
+  const [revealedAnswer, setRevealedAnswer] = useState<string | null>(null)
+  const [pendingFinish, setPendingFinish] = useState<{ won: boolean; cooldownUntil: number | null } | null>(
+    null,
+  )
   const [correctCount, setCorrectCount] = useState(0)
   const [status, setStatus] = useState<'intro' | 'in_progress' | 'won' | 'lost' | 'no_questions'>('intro')
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [clueOpen, setClueOpen] = useState(false)
-  const [noRepeatQuestions, setNoRepeatQuestions] = useState(false)
   const [gameSettings, setGameSettings] = useState<GameSettingsDoc | null>(null)
   const [myCoupons, setMyCoupons] = useState<TindaCouponWithId[]>([])
+  const [starting, setStarting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => subscribeToGameSettings(setGameSettings), [])
 
@@ -114,33 +118,33 @@ export function QuizBowlGame() {
     [],
   )
 
-  useEffect(
-    () => subscribeToQuizBowlSettings((s) => setNoRepeatQuestions(s?.noRepeatQuestions ?? false)),
-    [],
-  )
-
-  const eligibleCount = merchants.filter((m) => (m.questions ?? []).length > 0).length
+  const eligibleCount = merchants.filter((m) => (m.questionCount ?? 0) > 0).length
   const introThreshold = Math.ceil(eligibleCount / 2)
 
   const handleStart = async () => {
-    if (!user) return
-    const seen = noRepeatQuestions ? await getSeenQuestions(user.uid) : new Set<string>()
-    const freshRound = buildQuizRound(merchants, seen)
-    if (freshRound.length === 0) {
-      setStatus('no_questions')
-      return
+    if (!user || starting) return
+    setStarting(true)
+    setActionError(null)
+    try {
+      const { round: freshRound } = await startQuizAttempt()
+      if (freshRound.length === 0) {
+        setStatus('no_questions')
+        return
+      }
+      setRound(freshRound)
+      setIndex(0)
+      setCorrectCount(0)
+      setSelected(null)
+      setRevealedAnswer(null)
+      setPendingFinish(null)
+      setCooldownUntil(null)
+      setStatus('in_progress')
+    } catch (error) {
+      console.error('Failed to start Quiz Bowl attempt:', error)
+      setActionError('Could not start Quiz Bowl right now — please try again.')
+    } finally {
+      setStarting(false)
     }
-    await startAttempt(user.uid, freshRound)
-    await recordSeenQuestions(
-      user.uid,
-      freshRound.map((q) => questionKey(q.merchantId, q.question)),
-    )
-    setRound(freshRound)
-    setIndex(0)
-    setCorrectCount(0)
-    setSelected(null)
-    setCooldownUntil(null)
-    setStatus('in_progress')
   }
 
   useEffect(() => {
@@ -176,7 +180,7 @@ export function QuizBowlGame() {
 
       // No saved attempt, or a past cooldown has expired — show the
       // guidelines intro before starting a brand-new round.
-      setStatus(merchants.some((m) => (m.questions ?? []).length > 0) ? 'intro' : 'no_questions')
+      setStatus(merchants.some((m) => (m.questionCount ?? 0) > 0) ? 'intro' : 'no_questions')
       setAttemptLoading(false)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -244,10 +248,12 @@ export function QuizBowlGame() {
         <button
           type="button"
           onClick={() => void handleStart()}
-          className="mt-2 rounded-full bg-white px-8 py-2.5 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+          disabled={starting}
+          className="mt-2 rounded-full bg-white px-8 py-2.5 text-sm font-medium text-[#113DCB] hover:bg-white/90 disabled:opacity-50"
         >
-          Start
+          {starting ? 'Starting…' : 'Start'}
         </button>
+        {actionError && <p className="text-xs text-red-300">{actionError}</p>}
       </div>
     )
   }
@@ -322,50 +328,57 @@ export function QuizBowlGame() {
     )
   }
 
-  const winThreshold = Math.ceil(round.length / 2)
   const question = round[index]
   const isLast = index === round.length - 1
 
-  const handleSelect = (option: string) => {
-    if (selected) return
+  const handleSelect = async (option: string) => {
+    if (selected || submitting) return
+    setActionError(null)
     setSelected(option)
-    if (option === question.correctAnswer) setCorrectCount((c) => c + 1)
+    setSubmitting(true)
+    try {
+      const result = await submitQuizAnswer(option)
+      if (result.finished) {
+        // A retried/duplicate call landed after the round already ended
+        // server-side — resync from the live attempt/coupon listeners
+        // instead of rendering a result for a question that's already over.
+        setSelected(null)
+        return
+      }
+      setRevealedAnswer(result.correctAnswer ?? null)
+      setCorrectCount(result.correctCount)
+      if (result.isLast) {
+        setPendingFinish({ won: result.status === 'won', cooldownUntil: result.cooldownUntil })
+      }
+    } catch (error) {
+      console.error('Failed to submit Quiz Bowl answer:', error)
+      setSelected(null)
+      setActionError('Could not submit your answer — please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleNext = async () => {
+  const handleNext = () => {
     setClueOpen(false)
 
-    if (isLast) {
-      const won = correctCount >= winThreshold
-      const now = Date.now()
-      await advanceAttempt(user.uid, {
-        index,
-        correctCount,
-        status: won ? 'won' : 'lost',
-        finishedAt: now,
-        cooldownUntil: won ? null : now + QUIZ_COOLDOWN_MS,
-      })
+    if (pendingFinish) {
+      const { won, cooldownUntil: nextCooldownUntil } = pendingFinish
+      setPendingFinish(null)
+      setSelected(null)
+      setRevealedAnswer(null)
       if (won) {
-        await recordQuizBowlWin(user.uid)
-        await awardTindaCoupon(user.uid, 'quizBowl')
         setStatus('won')
       } else {
-        setCooldownUntil(now + QUIZ_COOLDOWN_MS)
+        setCooldownUntil(nextCooldownUntil ?? Date.now() + QUIZ_COOLDOWN_MS)
         setStatus('lost')
       }
       return
     }
 
-    const nextIndex = index + 1
-    await advanceAttempt(user.uid, {
-      index: nextIndex,
-      correctCount,
-      status: 'in_progress',
-      finishedAt: null,
-      cooldownUntil: null,
-    })
-    setIndex(nextIndex)
+    setIndex((i) => i + 1)
     setSelected(null)
+    setRevealedAnswer(null)
   }
 
   return (
@@ -387,14 +400,16 @@ export function QuizBowlGame() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {question.options.map((option, i) => {
-          const isCorrectOption = option === question.correctAnswer
-          const isSelectedOption = option === selected
-
           let optionClass = 'bg-white/10 ring-1 ring-white/10 hover:bg-white/20'
           if (selected) {
-            if (isCorrectOption) {
+            if (revealedAnswer === null) {
+              optionClass =
+                option === selected
+                  ? 'bg-white/15 ring-1 ring-white/30'
+                  : 'bg-white/5 ring-1 ring-white/5 opacity-60'
+            } else if (option === revealedAnswer) {
               optionClass = 'bg-emerald-500/30 ring-1 ring-emerald-400'
-            } else if (isSelectedOption) {
+            } else if (option === selected) {
               optionClass = 'bg-red-500/30 ring-1 ring-red-400'
             } else {
               optionClass = 'bg-white/5 ring-1 ring-white/5 opacity-60'
@@ -405,8 +420,8 @@ export function QuizBowlGame() {
             <button
               key={option}
               type="button"
-              onClick={() => handleSelect(option)}
-              disabled={selected !== null}
+              onClick={() => void handleSelect(option)}
+              disabled={selected !== null || submitting}
               className={`flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left text-sm font-medium text-white transition disabled:cursor-default ${optionClass}`}
             >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold">
@@ -420,18 +435,25 @@ export function QuizBowlGame() {
 
       {selected && (
         <div className="mt-6 flex flex-col items-start gap-3">
-          <p className={selected === question.correctAnswer ? 'text-emerald-300' : 'text-red-300'}>
-            {selected === question.correctAnswer
-              ? 'Correct!'
-              : `Incorrect — the answer was "${question.correctAnswer}".`}
-          </p>
-          <button
-            type="button"
-            onClick={() => void handleNext()}
-            className="rounded-md bg-white px-6 py-2.5 text-sm font-medium text-[#113DCB] hover:bg-white/90"
-          >
-            {isLast ? 'See result' : 'Next question'}
-          </button>
+          {revealedAnswer === null ? (
+            <p className="text-sm text-white/50">Checking your answer…</p>
+          ) : (
+            <>
+              <p className={selected === revealedAnswer ? 'text-emerald-300' : 'text-red-300'}>
+                {selected === revealedAnswer
+                  ? 'Correct!'
+                  : `Incorrect — the answer was "${revealedAnswer}".`}
+              </p>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="rounded-md bg-white px-6 py-2.5 text-sm font-medium text-[#113DCB] hover:bg-white/90"
+              >
+                {isLast ? 'See result' : 'Next question'}
+              </button>
+            </>
+          )}
+          {actionError && <p className="text-xs text-red-300">{actionError}</p>}
         </div>
       )}
 

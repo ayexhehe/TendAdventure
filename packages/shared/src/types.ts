@@ -38,13 +38,27 @@ export interface MerchantDoc {
   tindaZone: string
   youthRepresentative: string
   imageURL: string | null
-  questions: MerchantQuestion[]
+  // How many quiz questions this merchant has, WITHOUT the questions
+  // themselves — the real questionnaire (with correctAnswer) lives in the
+  // admin-only merchantQuestions/{merchantId} doc instead. This field is
+  // just enough for the public client to know a merchant is quiz-eligible,
+  // without ever shipping an answer key to every visitor's browser.
+  questionCount: number
   // TindaCoupon allocation: how many game-prize coupons this merchant is
   // willing to honor, and how many have been claimed so far. `issued`
   // only ever moves via the narrowly-scoped self-service increment rule
   // used by the coupon-award transaction — never a full merchant edit.
   couponSupply: number
   couponsIssued: number
+}
+
+// Admin-only, mirrors merchantCodes: the real questionnaire (including
+// correctAnswer) for a merchant, kept off the public merchants collection
+// entirely so quiz answers are never sent to a player's browser. Only
+// read by the startQuizAttempt Cloud Function (Admin SDK) and the admin
+// Merchants tab.
+export interface MerchantQuestionsDoc {
+  questions: MerchantQuestion[]
 }
 
 export interface ActivityDoc {
@@ -71,6 +85,11 @@ export interface AboutDoc {
   updatedAt: number
 }
 
+// Deliberately has no correctAnswer field — this is the shape stored on
+// the client-readable quizBowlAttempts/{uid} doc, so the answer key is
+// never sitting in a player's browser for a question they haven't
+// answered yet. Grading happens server-side, in the startQuizAttempt /
+// submitQuizAnswer Cloud Functions, against QuizBowlAttemptSecretDoc.
 export interface QuizBowlAttemptQuestion {
   merchantId: string
   merchantName: string
@@ -78,7 +97,6 @@ export interface QuizBowlAttemptQuestion {
   merchantTindaZone: string
   question: string
   options: string[]
-  correctAnswer: string
 }
 
 export type QuizBowlAttemptStatus = 'in_progress' | 'won' | 'lost'
@@ -87,6 +105,9 @@ export type QuizBowlAttemptStatus = 'in_progress' | 'won' | 'lost'
 // this isn't a growing log. `round` is fixed at creation time so a page
 // reload resumes with the exact same questions/option order instead of
 // reshuffling, and `cooldownUntil` gates starting a new round after a loss.
+// Written only by the startQuizAttempt / submitQuizAnswer Cloud Functions
+// (Admin SDK) or an admin reset — never directly by the player's client,
+// so a player can never self-declare a win.
 export interface QuizBowlAttemptDoc {
   uid: string
   status: QuizBowlAttemptStatus
@@ -96,6 +117,16 @@ export interface QuizBowlAttemptDoc {
   startedAt: number
   finishedAt: number | null
   cooldownUntil: number | null
+}
+
+// The answer key for a player's current round, index-aligned with
+// QuizBowlAttemptDoc.round. Lives in its own collection with NO Firestore
+// rule granting any client access at all (not even the owning player, not
+// even an admin) — only reachable via the Admin SDK inside the grading
+// Cloud Function. This is what actually keeps quiz answers off the wire.
+export interface QuizBowlAttemptSecretDoc {
+  uid: string
+  answers: string[]
 }
 
 // One doc per player, keyed by uid — tracks progress across all 3 taSKed
@@ -239,10 +270,17 @@ export interface VotingPerformerDoc {
   name: string
   photoURL: string | null
   description: string
-  // Denormalized running tally, kept in sync by a Cloud Function trigger
-  // on vote creation (never written directly by a client).
-  voteCount: number
   createdAt: number
+}
+
+// One doc per performer, keyed by performerId, living in its own
+// admin-only-readable collection — deliberately kept off the public
+// VotingPerformerDoc so results can never be read by a voter (or anyone
+// else) while a round is still live. Written only by the vote-created
+// Cloud Function trigger; no client, not even an admin one, can write it
+// directly.
+export interface VotingResultDoc {
+  voteCount: number
 }
 
 // One doc per (voter, category), doc id `${uid}_${categoryId}` — that

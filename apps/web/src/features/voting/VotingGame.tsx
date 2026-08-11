@@ -121,6 +121,10 @@ export function VotingGame() {
   }, [myVotes, optimisticVotedIds])
   const nextCategory = activeCategories.find((c) => !votedCategoryIds.has(c.id))
   const allVoted = activeCategories.length > 0 && !nextCategory
+  // Counts only votes in currently-active categories — myVotes can include
+  // a category that's since been hidden, which would otherwise inflate
+  // this past what "N of activeCategories.length" should ever show.
+  const votedActiveCount = activeCategories.filter((c) => votedCategoryIds.has(c.id)).length
   const hasVotingCoupon = myCoupons.some((c) => c.source === 'voting')
 
   const windowEndsAt = gameSettings?.votingWindowEndsAt ?? null
@@ -238,7 +242,7 @@ export function VotingGame() {
     <div className="flex w-full max-w-2xl flex-col gap-5 text-white">
       <div className="flex items-center justify-between">
         <p className="text-sm text-white/60">
-          Category {votedCategoryIds.size + 1} of {activeCategories.length}
+          Category {votedActiveCount + 1} of {activeCategories.length}
         </p>
         <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200">
           🔴 {formatCooldown(remainingMs)}

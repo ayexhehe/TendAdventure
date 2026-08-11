@@ -35,10 +35,11 @@ service cloud.firestore {
 
       // Coupon-award transaction: any signed-in winner may bump their
       // game's public issued-ticket counter by exactly 1 — nothing else
-      // about game settings can move through these two rules.
-      allow update: if request.auth != null
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizBowlTicketsIssued'])
-        && request.resource.data.quizBowlTicketsIssued == resource.data.quizBowlTicketsIssued + 1;
+      // about game settings can move through this rule. Quiz Bowl has no
+      // client-side equivalent: quizBowlTicketsIssued only ever moves via
+      // the submitQuizAnswer Cloud Function's Admin SDK, which bypasses
+      // rules entirely, because that's also the only place a Quiz Bowl
+      // win can be decided.
       allow update: if request.auth != null
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['taskedTicketsIssued'])
         && request.resource.data.taskedTicketsIssued == resource.data.taskedTicketsIssued + 1;
@@ -73,20 +74,33 @@ service cloud.firestore {
       allow read, write: if isAdminEmail();
     }
 
+    // Each merchant's real quiz questionnaire, including correctAnswer.
+    // Deliberately kept off the public merchants/{merchantId} doc (which
+    // only carries a questionCount) so the answer key is never part of
+    // any payload sent to a player's browser. Only the admin Merchants
+    // tab (via these rules) and the startQuizAttempt Cloud Function (via
+    // the Admin SDK, which bypasses these rules) ever read it.
+    match /merchantQuestions/{merchantId} {
+      allow read, write: if isAdminEmail();
+    }
+
     match /tindaCoupons/{couponId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.uid;
       allow read: if isAdminEmail();
 
       // Only ever created for yourself, as an unredeemed coupon — the
       // award transaction runs on the winning player's own client. Voting
-      // coupons are excluded here on purpose: those are only ever awarded
-      // server-side by the scheduled Cloud Function (Admin SDK, which
-      // bypasses these rules entirely) — a client can never self-create one.
+      // and Quiz Bowl coupons are excluded here on purpose: those are only
+      // ever awarded server-side (the scheduled voting Cloud Function and
+      // the submitQuizAnswer Cloud Function, respectively — both via the
+      // Admin SDK, which bypasses these rules entirely), because deciding
+      // a win for either of those games also has to happen server-side.
+      // Only taSKed still awards its own coupon directly from the client.
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.redeemed == false
         && request.resource.data.redeemedAt == null
-        && request.resource.data.source in ['quizBowl', 'tasked'];
+        && request.resource.data.source in ['tasked'];
 
       // Redeeming: the coupon owner "presents" it and a seller types in
       // their tindahan's code. The write is only allowed through if the
@@ -116,12 +130,18 @@ service cloud.firestore {
 
     match /votingPerformers/{performerId} {
       allow read: if true;
-      // voteCount only ever moves via the vote-created Cloud Function
-      // trigger (Admin SDK) — an admin edit here is a full-document write
-      // (name/photo/description/category), so it's fine that it can also
-      // touch voteCount; in practice the admin form always round-trips
-      // the current value rather than resetting it.
       allow write: if isAdminEmail();
+    }
+
+    // Live vote tallies. Deliberately its own admin-only collection,
+    // separate from the public votingPerformers doc — sealing the ballot
+    // so results can never be read by a voter (or anyone with the app's
+    // public Firebase config, which is everyone) while a round is live.
+    // Written only by the vote-created Cloud Function trigger (Admin SDK,
+    // bypasses these rules) — not even an admin client can write it.
+    match /votingResults/{performerId} {
+      allow read: if isAdminEmail();
+      allow write: if false;
     }
 
     // One vote per (voter, category): the doc id is `${uid}_${categoryId}`,
@@ -188,15 +208,10 @@ service cloud.firestore {
         && request.resource.data.role == 'admin'
         && isAdminEmail();
 
-      // Quiz Bowl win: a player may record their own win once, going only
-      // from not-won to won — never reversing it, never touching anything
-      // else on the profile.
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizBowl'])
-        && resource.data.quizBowl.hasWon == false
-        && request.resource.data.quizBowl.hasWon == true
-        && request.resource.data.quizBowl.wonAt is number;
+      // Quiz Bowl win: recorded only by the submitQuizAnswer Cloud
+      // Function (Admin SDK, which bypasses these rules) — a Quiz Bowl
+      // win is decided server-side, so there's no client-side path that
+      // should ever be allowed to flip this flag directly.
 
       // Admin Quiz Bowl reset: an admin may reset any player's quizBowl
       // state (e.g. the "reset all players" admin action), touching no
@@ -222,23 +237,28 @@ service cloud.firestore {
     }
 
     match /quizBowlAttempts/{uid} {
+      // Read-only for the owning player — every write (starting a round,
+      // grading an answer, finishing with a win or loss) happens
+      // server-side in the startQuizAttempt / submitQuizAnswer Cloud
+      // Functions via the Admin SDK, which bypasses these rules. That's
+      // deliberate: it's what makes it impossible for a client to
+      // self-declare a win or advance past a question it hasn't actually
+      // answered correctly.
       allow read: if request.auth != null && request.auth.uid == uid;
-
-      allow create: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid;
-
-      // Players may advance their own attempt (index/correctCount/status/
-      // finishedAt/cooldownUntil), but the round itself is fixed at
-      // creation and can't be swapped mid-quiz.
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && request.resource.data.round == resource.data.round;
 
       // Admins can read/reset any player's attempt (cooldown reset,
       // reset-all-players) from the General admin panel.
       allow read, write: if isAdminEmail();
+    }
+
+    // The answer key for a player's current round (see
+    // QuizBowlAttemptSecretDoc). No rule here grants any client access at
+    // all, not even the owning player or an admin — the catch-all at the
+    // bottom of this file denies it by default, which is exactly the
+    // point: the only way to ever read this collection is the Admin SDK
+    // inside the grading Cloud Function.
+    match /quizBowlAttemptSecrets/{uid} {
+      allow read, write: if false;
     }
 
     match /quizBowlSeenQuestions/{uid} {

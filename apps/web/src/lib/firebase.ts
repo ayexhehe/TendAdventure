@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth'
 import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore'
+import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions'
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage'
 
 const firebaseConfig = {
@@ -17,17 +18,20 @@ const isConfigured = Boolean(firebaseConfig.apiKey)
 export let auth: Auth | null = null
 export let db: Firestore | null = null
 export let storage: FirebaseStorage | null = null
+export let functions: Functions | null = null
 
 if (isConfigured) {
   const app = initializeApp(firebaseConfig)
   auth = getAuth(app)
   db = getFirestore(app)
   storage = getStorage(app)
+  functions = getFunctions(app)
 
   if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
     connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })
     connectFirestoreEmulator(db, 'localhost', 8080)
     connectStorageEmulator(storage, 'localhost', 9199)
+    connectFunctionsEmulator(functions, 'localhost', 5001)
   }
 } else {
   console.warn(

@@ -10,6 +10,7 @@ import {
   setVotingCategoryHidden,
   subscribeToVotingCategories,
   subscribeToVotingPerformers,
+  subscribeToVotingResults,
   updateVotingCategory,
   updateVotingPerformer,
   uploadVotingPerformerImage,
@@ -27,11 +28,13 @@ export function VotingTab() {
   const [merchants, setMerchants] = useState<MerchantWithId[]>([])
   const [categories, setCategories] = useState<VotingCategoryWithId[]>([])
   const [performers, setPerformers] = useState<VotingPerformerWithId[]>([])
+  const [results, setResults] = useState<Record<string, number>>({})
 
   useEffect(() => subscribeToGameSettings(setGameSettings), [])
   useEffect(() => subscribeToMerchants(setMerchants), [])
   useEffect(() => subscribeToVotingCategories(setCategories), [])
   useEffect(() => subscribeToVotingPerformers(setPerformers), [])
+  useEffect(() => subscribeToVotingResults(setResults), [])
 
   const [ticketsTotal, setTicketsTotal] = useState('0')
   const [savingTickets, setSavingTickets] = useState(false)
@@ -114,6 +117,7 @@ export function VotingTab() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [savingCategory, setSavingCategory] = useState(false)
   const [confirmDeleteCategoryId, setConfirmDeleteCategoryId] = useState<string | null>(null)
+  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(null)
 
   const startEditCategory = (c: VotingCategoryWithId) => {
     setEditingCategoryId(c.id)
@@ -143,8 +147,13 @@ export function VotingTab() {
 
   const handleDeleteCategory = async (id: string) => {
     setConfirmDeleteCategoryId(null)
-    await deleteVotingCategory(id)
-    if (editingCategoryId === id) resetCategoryForm()
+    setCategoryDeleteError(null)
+    try {
+      await deleteVotingCategory(id)
+      if (editingCategoryId === id) resetCategoryForm()
+    } catch (error) {
+      setCategoryDeleteError(error instanceof Error ? error.message : 'Could not delete that category.')
+    }
   }
 
   const handleToggleCategoryHidden = async (c: VotingCategoryWithId) => {
@@ -218,8 +227,13 @@ export function VotingTab() {
 
   const handleDeletePerformer = async (id: string) => {
     setConfirmDeletePerformerId(null)
-    await deleteVotingPerformer(id)
-    if (editingPerformerId === id) resetPerformerForm()
+    setPerformerError(null)
+    try {
+      await deleteVotingPerformer(id)
+      if (editingPerformerId === id) resetPerformerForm()
+    } catch (error) {
+      setPerformerError(error instanceof Error ? error.message : 'Could not delete that performer.')
+    }
   }
 
   const categoriesById = Object.fromEntries(categories.map((c) => [c.id, c]))
@@ -318,6 +332,7 @@ export function VotingTab() {
 
       <section className="rounded-2xl bg-white/5 p-6">
         <h2 className="text-lg font-semibold">Categories ({categories.length})</h2>
+        {categoryDeleteError && <p className="mt-2 text-xs text-red-300">{categoryDeleteError}</p>}
         <div className="mt-4 flex flex-col gap-2">
           {categories.map((c) => (
             <div key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-4 py-2.5">
@@ -567,20 +582,21 @@ export function VotingTab() {
           {categories.map((c) => {
             const inCategory = performers
               .filter((p) => p.categoryId === c.id)
-              .sort((a, b) => b.voteCount - a.voteCount)
-            const totalVotes = inCategory.reduce((sum, p) => sum + p.voteCount, 0)
+              .sort((a, b) => (results[b.id] ?? 0) - (results[a.id] ?? 0))
+            const totalVotes = inCategory.reduce((sum, p) => sum + (results[p.id] ?? 0), 0)
             return (
               <div key={c.id}>
                 <p className="text-sm font-semibold text-white/80">{c.name}</p>
                 <div className="mt-2 flex flex-col gap-2">
                   {inCategory.map((p) => {
-                    const pct = totalVotes > 0 ? Math.round((p.voteCount / totalVotes) * 100) : 0
+                    const voteCount = results[p.id] ?? 0
+                    const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0
                     return (
                       <div key={p.id} className="flex flex-col gap-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-white/70">{p.name}</span>
                           <span className="text-white/50">
-                            {p.voteCount} vote{p.voteCount === 1 ? '' : 's'} ({pct}%)
+                            {voteCount} vote{voteCount === 1 ? '' : 's'} ({pct}%)
                           </span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">

@@ -11,9 +11,10 @@ import {
   where,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import type { VotingCategoryDoc, VotingPerformerDoc, VoteDoc } from '@tindadventure/shared'
+import type { VotingCategoryDoc, VotingPerformerDoc, VotingResultDoc, VoteDoc } from '@tindadventure/shared'
 import { db, storage } from './firebase'
 import { compressImage } from './image'
+import { getGameSettings } from './gameSettings'
 
 export interface VotingCategoryWithId extends VotingCategoryDoc {
   id: string
@@ -48,6 +49,47 @@ export function subscribeToVotingPerformers(onChange: (performers: VotingPerform
   )
 }
 
+// Admin-only (enforced by rules, not just this check) — live vote tallies,
+// kept in a separate collection from the public performer docs so results
+// stay sealed from voters while a round is running.
+export function subscribeToVotingResults(onChange: (results: Record<string, number>) => void) {
+  if (!db) return () => {}
+  return onSnapshot(
+    collection(db, 'votingResults'),
+    (snapshot) => {
+      const results: Record<string, number> = {}
+      snapshot.docs.forEach((d) => {
+        results[d.id] = (d.data() as VotingResultDoc).voteCount ?? 0
+      })
+      onChange(results)
+    },
+    (error) => {
+      console.error('Failed to subscribe to voting results:', error)
+      onChange({})
+    },
+  )
+}
+
+// Refuses to delete a performer/category that already has votes, or while
+// a round is currently live — either one risks silently destroying real
+// vote data (voteCount lives only on the result doc, with no other copy)
+// or pulling a choice out from under someone mid-vote. Callers should
+// steer admins toward "Hide" instead, which preserves everything.
+async function assertSafeToRemoveVotingContent(): Promise<void> {
+  const settings = await getGameSettings()
+  const windowEndsAt = settings?.votingWindowEndsAt
+  if (windowEndsAt != null && Date.now() < windowEndsAt) {
+    throw new Error('Cannot delete while a round is live — stop the round first, or hide it instead.')
+  }
+}
+
+async function performerHasVotes(performerId: string): Promise<boolean> {
+  if (!db) return false
+  const snap = await getDoc(doc(db, 'votingResults', performerId))
+  const voteCount = snap.exists() ? ((snap.data() as VotingResultDoc).voteCount ?? 0) : 0
+  return voteCount > 0
+}
+
 export async function uploadVotingPerformerImage(file: File): Promise<string> {
   if (!storage) throw new Error('Storage is not configured')
   const compressed = await compressImage(file)
@@ -74,11 +116,18 @@ export async function setVotingCategoryHidden(id: string, hidden: boolean) {
 }
 
 // Cascades to every performer under this category so voting never ends up
-// pointing at an orphaned category.
+// pointing at an orphaned category. Refuses if a round is live, or if any
+// performer in the category already has votes — see
+// assertSafeToRemoveVotingContent / performerHasVotes above.
 export async function deleteVotingCategory(id: string) {
   if (!db) return
   const firestore = db
+  await assertSafeToRemoveVotingContent()
   const performersSnap = await getDocs(query(collection(firestore, 'votingPerformers'), where('categoryId', '==', id)))
+  const votedFlags = await Promise.all(performersSnap.docs.map((d) => performerHasVotes(d.id)))
+  if (votedFlags.some(Boolean)) {
+    throw new Error('Cannot delete — this category has performers with existing votes. Hide it instead.')
+  }
   await Promise.all(performersSnap.docs.map((d) => deleteDoc(d.ref)))
   await deleteDoc(doc(firestore, 'votingCategories', id))
 }
@@ -97,7 +146,6 @@ export async function addVotingPerformer(input: VotingPerformerInput) {
     name: input.name.trim(),
     photoURL: input.photoURL,
     description: input.description.trim(),
-    voteCount: 0,
     createdAt: Date.now(),
   }
   await setDoc(doc(collection(db, 'votingPerformers')), performer)
@@ -112,14 +160,19 @@ export async function updateVotingPerformer(id: string, input: VotingPerformerIn
     name: input.name.trim(),
     photoURL: input.photoURL,
     description: input.description.trim(),
-    voteCount: existing?.voteCount ?? 0,
     createdAt: existing?.createdAt ?? Date.now(),
   }
   await setDoc(ref2, performer)
 }
 
+// Refuses if a round is live, or if this performer already has votes —
+// see assertSafeToRemoveVotingContent / performerHasVotes above.
 export async function deleteVotingPerformer(id: string) {
   if (!db) return
+  await assertSafeToRemoveVotingContent()
+  if (await performerHasVotes(id)) {
+    throw new Error('Cannot delete — this performer already has votes. Hide their category instead.')
+  }
   await deleteDoc(doc(db, 'votingPerformers', id))
 }
 

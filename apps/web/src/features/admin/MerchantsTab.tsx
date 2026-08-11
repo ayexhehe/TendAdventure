@@ -3,7 +3,9 @@ import type { MerchantQuestion } from '@tindadventure/shared'
 import {
   addMerchant,
   deleteMerchant,
+  migrateLegacyMerchantQuestions,
   subscribeToMerchantCodes,
+  subscribeToMerchantQuestions,
   subscribeToMerchants,
   updateMerchant,
   uploadMerchantImage,
@@ -70,6 +72,7 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
 export function MerchantsTab() {
   const [merchants, setMerchants] = useState<MerchantWithId[]>([])
   const [merchantCodes, setMerchantCodes] = useState<Record<string, string>>({})
+  const [merchantQuestions, setMerchantQuestions] = useState<Record<string, MerchantQuestion[]>>({})
   const [page, setPage] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [existingImageURL, setExistingImageURL] = useState<string | null>(null)
@@ -92,16 +95,36 @@ export function MerchantsTab() {
   const productRef = useRef<HTMLTextAreaElement>(null)
   const [merchantsSectionEnabled, setMerchantsSectionEnabled] = useState(true)
   const [savingSectionToggle, setSavingSectionToggle] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState<string | null>(null)
 
   useAutoGrow(descriptionRef, description)
   useAutoGrow(productRef, product)
 
   useEffect(() => subscribeToMerchants(setMerchants), [])
   useEffect(() => subscribeToMerchantCodes(setMerchantCodes), [])
+  useEffect(() => subscribeToMerchantQuestions(setMerchantQuestions), [])
   useEffect(
     () => subscribeToGameSettings((s) => setMerchantsSectionEnabled(s?.merchantsSectionEnabled ?? true)),
     [],
   )
+
+  const handleMigrateQuestions = async () => {
+    setMigrating(true)
+    setMigrationResult(null)
+    try {
+      const { migrated, skipped } = await migrateLegacyMerchantQuestions()
+      setMigrationResult(
+        migrated > 0
+          ? `Migrated ${migrated} merchant${migrated === 1 ? '' : 's'} (${skipped} already up to date).`
+          : `Nothing to migrate — all ${skipped} merchants are already up to date.`,
+      )
+    } catch {
+      setMigrationResult('Migration failed — please try again.')
+    } finally {
+      setMigrating(false)
+    }
+  }
 
   const handleToggleMerchantsSection = async () => {
     const next = !merchantsSectionEnabled
@@ -156,8 +179,8 @@ export function MerchantsTab() {
     setPhotoFile(null)
     setCouponSupply(String(m.couponSupply ?? 0))
     setMerchantCode(merchantCodes[m.id] ?? '')
-    setQuestions(m.questions ?? [])
-    setQuestionsOpen((m.questions ?? []).length > 0)
+    setQuestions(merchantQuestions[m.id] ?? [])
+    setQuestionsOpen((merchantQuestions[m.id] ?? []).length > 0)
     setError(null)
   }
 
@@ -237,6 +260,28 @@ export function MerchantsTab() {
 
   return (
     <div className="flex w-full flex-col gap-6 text-white">
+      <section className="rounded-2xl bg-amber-400/10 p-6 ring-1 ring-amber-400/30">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-amber-200">One-time: move quiz questions to secure storage</p>
+            <p className="text-xs text-white/50">
+              Quiz answers used to live on each merchant's public profile — they've since moved to a
+              separate, admin-only place so players can never read them. Run this once to carry over
+              any questions entered before that change. Safe to click more than once.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleMigrateQuestions()}
+            disabled={migrating}
+            className="shrink-0 rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-[#113DCB] hover:bg-amber-300 disabled:opacity-50"
+          >
+            {migrating ? 'Migrating…' : 'Migrate now'}
+          </button>
+        </div>
+        {migrationResult && <p className="mt-2 text-xs text-white/70">{migrationResult}</p>}
+      </section>
+
       <section className="rounded-2xl bg-white/5 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

@@ -32,7 +32,7 @@ const inputClass = 'rounded-md bg-white/10 px-3 py-2 text-sm text-white placehol
 // Invite links are meant to be opened by someone else's phone, so they must
 // always point at the live site regardless of what origin generated them —
 // including in dev, where a localhost link would be useless to the recipient.
-const SITE_ORIGIN = 'https://tend-adventure-web.vercel.app'
+const SITE_ORIGIN = 'https://www.skguadalupecebu.info'
 
 function TaskCard({
   step,

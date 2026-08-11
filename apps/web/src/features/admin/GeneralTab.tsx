@@ -92,6 +92,17 @@ export function GeneralTab() {
     [],
   )
 
+  // Kept live (unlike the fields below, which only sync once on load so a
+  // stray snapshot doesn't clobber an admin's in-progress edit) — this one
+  // has no editable input of its own, it's read-only validation input for
+  // the quiz/tasked cap checks, so staying fresh is strictly better: an
+  // admin editing Voting's allocation in another tab won't leave this tab's
+  // cross-check working off a stale number.
+  useEffect(
+    () => subscribeToGameSettings((s) => setVotingTicketsTotalForCap(s?.votingTicketsTotal ?? 0)),
+    [],
+  )
+
   useEffect(
     () =>
       subscribeToGameSettings((s) => {
@@ -100,7 +111,6 @@ export function GeneralTab() {
           setTaskedOpen(s?.taskedOpen ?? true)
           setQuizBowlTicketsTotal(String(s?.quizBowlTicketsTotal ?? 0))
           setTaskedTicketsTotal(String(s?.taskedTicketsTotal ?? 0))
-          setVotingTicketsTotalForCap(s?.votingTicketsTotal ?? 0)
           setGameSettingsLoaded(true)
 
           // First time this doc is ever touched: make sure the public
