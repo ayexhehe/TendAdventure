@@ -9,6 +9,7 @@ const PAGE_SIZE = 10
 const SOURCE_LABEL: Record<TindaCouponWithId['source'], string> = {
   quizBowl: 'Quiz Bowl',
   tasked: 'taSKed',
+  voting: 'Voting',
 }
 
 function formatDateTime(ms: number): string {

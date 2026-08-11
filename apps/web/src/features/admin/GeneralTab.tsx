@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import { resetAllCooldowns, resetAllPlayers } from '../../lib/quizBowlAdmin'
 import { resetAllTaskedPlayers } from '../../lib/taskedAdmin'
 import { subscribeToQuizBowlSettings, setNoRepeatQuestions } from '../../lib/quizBowlSettings'
-import { subscribeToTaskedSettings, saveTaskedSettings } from '../../lib/taskedSettings'
+import {
+  subscribeToTaskedSettings,
+  saveTaskedSettings,
+  DEFAULT_TASK1_SHARE_MESSAGE,
+} from '../../lib/taskedSettings'
 import { subscribeToGameSettings, saveGameSettings } from '../../lib/gameSettings'
 import { subscribeToMerchants } from '../../lib/merchants'
 
@@ -78,6 +82,7 @@ export function GeneralTab() {
   const [quizTicketsError, setQuizTicketsError] = useState<string | null>(null)
   const [taskedTicketsError, setTaskedTicketsError] = useState<string | null>(null)
   const [merchantCouponSupply, setMerchantCouponSupply] = useState(0)
+  const [votingTicketsTotalForCap, setVotingTicketsTotalForCap] = useState(0)
 
   useEffect(
     () =>
@@ -95,6 +100,7 @@ export function GeneralTab() {
           setTaskedOpen(s?.taskedOpen ?? true)
           setQuizBowlTicketsTotal(String(s?.quizBowlTicketsTotal ?? 0))
           setTaskedTicketsTotal(String(s?.taskedTicketsTotal ?? 0))
+          setVotingTicketsTotalForCap(s?.votingTicketsTotal ?? 0)
           setGameSettingsLoaded(true)
 
           // First time this doc is ever touched: make sure the public
@@ -109,6 +115,12 @@ export function GeneralTab() {
               quizBowlTicketsIssued: 0,
               taskedTicketsTotal: 0,
               taskedTicketsIssued: 0,
+              merchantsSectionEnabled: true,
+              votingWindowMinutes: 10,
+              votingWindowEndsAt: null,
+              votingTicketsTotal: 0,
+              votingTicketsIssued: 0,
+              nextVotingDropAt: null,
             })
           }
         }
@@ -143,10 +155,10 @@ export function GeneralTab() {
     setQuizTicketsError(null)
     setQuizTicketsSaved(false)
     const next = Math.max(0, Number(quizBowlTicketsTotal) || 0)
-    const other = Math.max(0, Number(taskedTicketsTotal) || 0)
+    const other = Math.max(0, Number(taskedTicketsTotal) || 0) + votingTicketsTotalForCap
     if (next > 0 && next + other > merchantCouponSupply) {
       setQuizTicketsError(
-        `Quiz Bowl (${next}) + taSKed (${other}) = ${next + other}, which is more than the ${merchantCouponSupply} coupons allocated across merchants.`,
+        `Quiz Bowl (${next}) + taSKed + Voting (${other}) = ${next + other}, which is more than the ${merchantCouponSupply} coupons allocated across merchants.`,
       )
       return
     }
@@ -163,10 +175,10 @@ export function GeneralTab() {
     setTaskedTicketsError(null)
     setTaskedTicketsSaved(false)
     const next = Math.max(0, Number(taskedTicketsTotal) || 0)
-    const other = Math.max(0, Number(quizBowlTicketsTotal) || 0)
+    const other = Math.max(0, Number(quizBowlTicketsTotal) || 0) + votingTicketsTotalForCap
     if (next > 0 && next + other > merchantCouponSupply) {
       setTaskedTicketsError(
-        `taSKed (${next}) + Quiz Bowl (${other}) = ${next + other}, which is more than the ${merchantCouponSupply} coupons allocated across merchants.`,
+        `taSKed (${next}) + Quiz Bowl + Voting (${other}) = ${next + other}, which is more than the ${merchantCouponSupply} coupons allocated across merchants.`,
       )
       return
     }
@@ -179,6 +191,7 @@ export function GeneralTab() {
     }
   }
 
+  const [task1ShareMessage, setTask1ShareMessage] = useState('')
   const [task2Hashtags, setTask2Hashtags] = useState('')
   const [taskedLoaded, setTaskedLoaded] = useState(false)
   const [savingTasked, setSavingTasked] = useState(false)
@@ -188,6 +201,7 @@ export function GeneralTab() {
     () =>
       subscribeToTaskedSettings((s) => {
         if (!taskedLoaded) {
+          setTask1ShareMessage(s?.task1ShareMessage ?? DEFAULT_TASK1_SHARE_MESSAGE)
           setTask2Hashtags(s?.task2Hashtags ?? '')
           setTaskedLoaded(true)
         }
@@ -200,7 +214,10 @@ export function GeneralTab() {
     setSavingTasked(true)
     setTaskedSaved(false)
     try {
-      await saveTaskedSettings({ task2Hashtags: task2Hashtags.trim() })
+      await saveTaskedSettings({
+        task1ShareMessage: task1ShareMessage.trim(),
+        task2Hashtags: task2Hashtags.trim(),
+      })
       setTaskedSaved(true)
     } finally {
       setSavingTasked(false)
@@ -451,6 +468,20 @@ export function GeneralTab() {
         </div>
 
         <div className="mt-5 flex flex-col gap-4 border-t border-white/10 pt-5">
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Task 1 share message</label>
+            <textarea
+              value={task1ShareMessage}
+              onChange={(e) => setTask1ShareMessage(e.target.value)}
+              placeholder={DEFAULT_TASK1_SHARE_MESSAGE}
+              rows={6}
+              className={`${inputClass} resize-y font-mono`}
+            />
+            <p className="text-xs text-white/40">
+              What gets shared when a player taps "Share with a friend" or "Send via Messenger" on
+              Task 1. Their personal invite link is appended automatically — don't include it here.
+            </p>
+          </div>
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>Task 2 hashtags</label>
             <input

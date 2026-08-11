@@ -133,10 +133,11 @@ export interface TaskedClickLogDoc {
 }
 
 export interface TaskedSettingsDoc {
+  task1ShareMessage: string
   task2Hashtags: string
 }
 
-export type TindaCouponSource = 'quizBowl' | 'tasked'
+export type TindaCouponSource = 'quizBowl' | 'tasked' | 'voting'
 
 // The prize for winning either game. Awarded to a random merchant with
 // remaining coupon supply. `code` is just a display/reference code for
@@ -189,6 +190,26 @@ export interface GameSettingsDoc {
   quizBowlTicketsIssued: number
   taskedTicketsTotal: number
   taskedTicketsIssued: number
+  merchantsSectionEnabled: boolean
+  // Voting is the third game: a live, timed round (e.g. "SoundCheck Clash
+  // People's Choice — 10 minutes") that the admin starts on the spot.
+  // Everyone votes against the same shared clock — there's no per-player
+  // timer. `votingWindowMinutes` is just the duration typed into the admin
+  // panel; starting a round sets `votingWindowEndsAt` to `now + that many
+  // minutes`, and voting is live exactly while `now < votingWindowEndsAt`.
+  // TindaCoupons drop randomly *within* that live window — a few at a
+  // time, never predictably — via a scheduled Cloud Function.
+  // `votingTicketsIssued`, `votingWindowEndsAt`, and `nextVotingDropAt`
+  // are therefore only ever written by the admin panel (to start/stop a
+  // round) or that function (to award a coupon) — never by a voting player.
+  votingWindowMinutes: number
+  votingWindowEndsAt: number | null
+  votingTicketsTotal: number
+  votingTicketsIssued: number
+  // Epoch ms for the next randomly-scheduled coupon drop within the
+  // current live window. Recomputed after each drop (or reseeded whenever
+  // a new round starts) so drops never land on a predictable cadence.
+  nextVotingDropAt: number | null
 }
 
 export interface QuizBowlSettingsDoc {
@@ -201,4 +222,36 @@ export interface QuizBowlSettingsDoc {
 export interface QuizBowlSeenQuestionsDoc {
   uid: string
   seen: string[]
+}
+
+export interface VotingCategoryDoc {
+  name: string
+  order: number
+  // Hidden categories stay fully manageable in the admin panel (add/edit
+  // performers, see results) but are excluded from the public voting flow
+  // — voters never see them and don't get a vote for them.
+  hidden: boolean
+  createdAt: number
+}
+
+export interface VotingPerformerDoc {
+  categoryId: string
+  name: string
+  photoURL: string | null
+  description: string
+  // Denormalized running tally, kept in sync by a Cloud Function trigger
+  // on vote creation (never written directly by a client).
+  voteCount: number
+  createdAt: number
+}
+
+// One doc per (voter, category), doc id `${uid}_${categoryId}` — that
+// deterministic id is what makes "one vote per category" enforceable by
+// rules alone: a second attempt just collides with the existing doc,
+// which the rules never allow to be updated or replaced.
+export interface VoteDoc {
+  uid: string
+  categoryId: string
+  performerId: string
+  votedAt: number
 }

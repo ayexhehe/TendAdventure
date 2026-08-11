@@ -50,6 +50,7 @@ export function GameCard({
   comingSoon,
   continueAvailable,
   cooldownUntil,
+  liveUntil,
   progress,
   completed,
   closed,
@@ -63,6 +64,10 @@ export function GameCard({
   comingSoon?: boolean
   continueAvailable?: boolean
   cooldownUntil?: number | null
+  // When set and still in the future, the card shows a live countdown
+  // badge instead of its usual state — for a round-based game like Voting
+  // where "open" means "live right now, ending at this exact moment."
+  liveUntil?: number | null
   progress?: number
   completed?: boolean
   closed?: boolean
@@ -73,13 +78,15 @@ export function GameCard({
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!cooldownUntil) return
+    if (!cooldownUntil && !liveUntil) return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
-  }, [cooldownUntil])
+  }, [cooldownUntil, liveUntil])
 
   const cooldownRemaining = cooldownUntil ? cooldownUntil - now : 0
   const inCooldown = cooldownRemaining > 0
+  const live = !!liveUntil && liveUntil > now
+  const liveRemaining = live ? liveUntil - now : 0
   const showTicketBar = !!ticketProgress && ticketProgress.total > 0
   const ticketPercent = showTicketBar
     ? Math.min(100, Math.round((ticketProgress!.issued / ticketProgress!.total) * 100))
@@ -99,6 +106,10 @@ export function GameCard({
         ) : soldOut ? (
           <span className="absolute right-0 top-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">
             🎟️ Sold out
+          </span>
+        ) : live ? (
+          <span className="absolute right-0 top-0 flex animate-pulse items-center gap-1 rounded-full bg-red-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+            🔴 Live · {formatCooldown(liveRemaining)}
           </span>
         ) : (
           <>

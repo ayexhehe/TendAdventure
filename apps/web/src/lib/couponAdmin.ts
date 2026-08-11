@@ -26,10 +26,15 @@ export async function resetMerchantCouponCount(merchantId: string) {
   await updateDoc(doc(db, 'merchants', merchantId), { couponsIssued: 0 })
 }
 
+const TICKETS_ISSUED_FIELD: Record<TindaCouponSource, string> = {
+  quizBowl: 'quizBowlTicketsIssued',
+  tasked: 'taskedTicketsIssued',
+  voting: 'votingTicketsIssued',
+}
+
 export async function resetGameCouponCount(source: TindaCouponSource) {
   if (!db) return
-  const field = source === 'quizBowl' ? 'quizBowlTicketsIssued' : 'taskedTicketsIssued'
-  await updateDoc(doc(db, 'config', 'gameSettings'), { [field]: 0 })
+  await updateDoc(doc(db, 'config', 'gameSettings'), { [TICKETS_ISSUED_FIELD[source]]: 0 })
 }
 
 export async function resetAllCouponCounts(): Promise<number> {
@@ -44,6 +49,7 @@ export async function resetAllCouponCounts(): Promise<number> {
   await updateDoc(doc(db, 'config', 'gameSettings'), {
     quizBowlTicketsIssued: 0,
     taskedTicketsIssued: 0,
+    votingTicketsIssued: 0,
   })
 
   return snapshot.size

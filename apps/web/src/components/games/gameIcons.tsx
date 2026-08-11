@@ -21,3 +21,12 @@ export function TaskedIcon() {
     </svg>
   )
 }
+
+export function VotingIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-6 w-6">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h5l1-3 1 3h5v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12.5l1.75 1.75L12.5 10.5" />
+    </svg>
+  )
+}

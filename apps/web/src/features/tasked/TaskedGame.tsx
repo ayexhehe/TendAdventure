@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import type { GameSettingsDoc, TaskedEntrantDoc, TaskedSettingsDoc } from '@tindadventure/shared'
 import { useAuth } from '../../hooks/useAuth'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
-import { BackButton } from '../../components/BackButton'
 import { CouponWinCelebration } from '../../components/tindaCoupons/CouponWinCelebration'
 import { submitMessage } from '../../lib/messageWall'
 import { recordTaskedWin } from '../../lib/users'
@@ -13,7 +12,7 @@ import {
   subscribeToMyCoupons,
   type TindaCouponWithId,
 } from '../../lib/tindaCoupons'
-import { subscribeToTaskedSettings } from '../../lib/taskedSettings'
+import { subscribeToTaskedSettings, DEFAULT_TASK1_SHARE_MESSAGE } from '../../lib/taskedSettings'
 import { subscribeToGameSettings } from '../../lib/gameSettings'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
 import {
@@ -227,18 +226,12 @@ export function TaskedGame() {
   }
 
   const shareLink = `${SITE_ORIGIN}/i/${entrant.personalShareSlug}`
-  const shareText = [
-    '🎉 FROM ONE YOUTH TO ANOTHER — GUADAHIUSA NA! 💙',
-    '',
-    'Kauban ang SK Guadalupe Council sa pag-celebrate sa Linggo ng Kabataan 2026! ✨',
-    '',
-    'Naay games 🎮, youth stalls 🛍️, TindaCoupon prizes 🎟️, ug live music 🎶 from our young local talents! 🎤🔥',
-    '',
-    'Bangon na, og kaligo na dira! 😂',
-    'Kuyog ta, magka-kita kita ta diri! 🤙💙',
-    '',
-    '🎶 GUADAHIUSA — Youth Arts and Music Festival 2026',
-  ].join('\n')
+  // The link is embedded directly in the message text rather than passed
+  // as Web Share API's separate `url` field — that field is handled
+  // inconsistently across share targets (Messenger in particular often
+  // drops it, pasting only `text` and silently losing the link). Baking
+  // it into the text guarantees it's always there.
+  const shareText = `${settings?.task1ShareMessage || DEFAULT_TASK1_SHARE_MESSAGE}\n\n${shareLink}`
   const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
   const handleCopyLink = async () => {
@@ -250,7 +243,7 @@ export function TaskedGame() {
   const handleShare = async () => {
     if (canNativeShare) {
       try {
-        await navigator.share({ title: 'SK Guadalupe – Linggo ng Kabataan', text: shareText, url: shareLink })
+        await navigator.share({ title: 'SK Guadalupe – Linggo ng Kabataan', text: shareText })
       } catch {
         // user backed out of the share sheet — nothing to do
       }
@@ -304,8 +297,7 @@ export function TaskedGame() {
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-5 text-white">
-      <div className="relative text-center">
-        <BackButton />
+      <div className="text-center">
         <h1 className="text-2xl font-semibold sm:text-3xl">You are TaSKed!</h1>
         <p className="mt-2 text-sm text-white/60">Complete all 3 tasks below to win a TindaCoupon.</p>
       </div>

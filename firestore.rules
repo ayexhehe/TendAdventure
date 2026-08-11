@@ -42,6 +42,13 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['taskedTicketsIssued'])
         && request.resource.data.taskedTicketsIssued == resource.data.taskedTicketsIssued + 1;
+
+      // Voting tickets are awarded server-side only, by the scheduled
+      // Cloud Function using the Admin SDK — which bypasses these rules
+      // entirely. No client-side rule grants write access to
+      // votingTicketsIssued; the blanket admin `allow write` above is the
+      // only client path, for the admin panel's votingWindowMinutes /
+      // votingWindowEndsAt (start/stop a round) / votingTicketsTotal fields.
     }
 
     match /merchants/{merchantId} {
@@ -71,11 +78,15 @@ service cloud.firestore {
       allow read: if isAdminEmail();
 
       // Only ever created for yourself, as an unredeemed coupon — the
-      // award transaction runs on the winning player's own client.
+      // award transaction runs on the winning player's own client. Voting
+      // coupons are excluded here on purpose: those are only ever awarded
+      // server-side by the scheduled Cloud Function (Admin SDK, which
+      // bypasses these rules entirely) — a client can never self-create one.
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.redeemed == false
-        && request.resource.data.redeemedAt == null;
+        && request.resource.data.redeemedAt == null
+        && request.resource.data.source in ['quizBowl', 'tasked'];
 
       // Redeeming: the coupon owner "presents" it and a seller types in
       // their tindahan's code. The write is only allowed through if the
@@ -96,6 +107,44 @@ service cloud.firestore {
       // before this fires; this rule is the server-side backstop that
       // only an admin account can ever trigger it at all.
       allow delete: if isAdminEmail();
+    }
+
+    match /votingCategories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdminEmail();
+    }
+
+    match /votingPerformers/{performerId} {
+      allow read: if true;
+      // voteCount only ever moves via the vote-created Cloud Function
+      // trigger (Admin SDK) — an admin edit here is a full-document write
+      // (name/photo/description/category), so it's fine that it can also
+      // touch voteCount; in practice the admin form always round-trips
+      // the current value rather than resetting it.
+      allow write: if isAdminEmail();
+    }
+
+    // One vote per (voter, category): the doc id is `${uid}_${categoryId}`,
+    // so a repeat vote just collides with the existing doc — and since
+    // update/delete are never allowed, a cast vote can never be changed.
+    // Everyone votes against the same shared clock — a vote only goes
+    // through while `now` is still before the admin-started round's
+    // `votingWindowEndsAt` on config/gameSettings.
+    match /votes/{voteId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read: if isAdminEmail();
+
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && voteId == request.auth.uid + '_' + request.resource.data.categoryId
+        && request.resource.data.votedAt is number
+        && get(/databases/$(database)/documents/votingPerformers/$(request.resource.data.performerId)).data.categoryId
+           == request.resource.data.categoryId
+        && get(/databases/$(database)/documents/config/gameSettings).data.votingWindowEndsAt is number
+        && request.time.toMillis() <=
+           get(/databases/$(database)/documents/config/gameSettings).data.votingWindowEndsAt;
+
+      allow update, delete: if false;
     }
 
     match /activities/{activityId} {

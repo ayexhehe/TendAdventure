@@ -9,7 +9,37 @@ import {
   uploadMerchantImage,
   type MerchantWithId,
 } from '../../lib/merchants'
+import { subscribeToGameSettings, saveGameSettings } from '../../lib/gameSettings'
 import { Pagination } from '../../components/Pagination'
+
+function Switch({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${
+        checked ? 'bg-emerald-500' : 'bg-white/15'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition ${
+          checked ? 'left-5.5' : 'left-0.5'
+        }`}
+      />
+    </button>
+  )
+}
 
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
@@ -25,7 +55,7 @@ const TINDA_ZONES = [
   'Zone A - Food',
   'Zone B - Beverages',
   'Zone C - Arts & Crafts',
-  'Zone D - Clothing',
+  'Zone D - Apparel',
 ]
 
 function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: string) {
@@ -60,12 +90,29 @@ export function MerchantsTab() {
   const [error, setError] = useState<string | null>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const productRef = useRef<HTMLTextAreaElement>(null)
+  const [merchantsSectionEnabled, setMerchantsSectionEnabled] = useState(true)
+  const [savingSectionToggle, setSavingSectionToggle] = useState(false)
 
   useAutoGrow(descriptionRef, description)
   useAutoGrow(productRef, product)
 
   useEffect(() => subscribeToMerchants(setMerchants), [])
   useEffect(() => subscribeToMerchantCodes(setMerchantCodes), [])
+  useEffect(
+    () => subscribeToGameSettings((s) => setMerchantsSectionEnabled(s?.merchantsSectionEnabled ?? true)),
+    [],
+  )
+
+  const handleToggleMerchantsSection = async () => {
+    const next = !merchantsSectionEnabled
+    setSavingSectionToggle(true)
+    setMerchantsSectionEnabled(next)
+    try {
+      await saveGameSettings({ merchantsSectionEnabled: next })
+    } finally {
+      setSavingSectionToggle(false)
+    }
+  }
 
   const pageCount = Math.max(1, Math.ceil(merchants.length / PAGE_SIZE))
 
@@ -190,6 +237,23 @@ export function MerchantsTab() {
 
   return (
     <div className="flex w-full flex-col gap-6 text-white">
+      <section className="rounded-2xl bg-white/5 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Show "Know the Tindahans" on landing page</p>
+            <p className="text-xs text-white/50">
+              When off, the landing page hides merchant highlights and instead shows a single
+              "Be one of the Tindahan!" card inviting sellers to join.
+            </p>
+          </div>
+          <Switch
+            checked={merchantsSectionEnabled}
+            onChange={() => void handleToggleMerchantsSection()}
+            disabled={savingSectionToggle}
+          />
+        </div>
+      </section>
+
       <section className="overflow-hidden rounded-2xl bg-white/5">
         <h2 className="px-6 pt-5 text-lg font-semibold">Merchants ({merchants.length})</h2>
         <div className="mt-4 overflow-x-auto">

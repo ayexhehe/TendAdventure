@@ -81,7 +81,7 @@ export function InvitePage() {
             <div className="text-center">
               <p className="text-xs font-medium tracking-[0.2em] text-white/40 uppercase">You're invited</p>
               <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
-                {ownerName} says: Come and celebrate Linggo ng Kabataan with SK Guadalupe!
+                {ownerName} says: Come and celebrate Linggo ng Kabataan sa SK Guadalupe!
               </h1>
               <p className="mt-2 text-sm text-white/60">
                 Merchant stalls, games, prizes, and good company — all in one place.

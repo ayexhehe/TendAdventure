@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Layout } from '../../components/layout/Layout'
 import { RequireAdmin } from '../../components/auth/RequireAdmin'
 import { MerchantsTab } from './MerchantsTab'
+import { VotingTab } from './VotingTab'
 import { UsersTab } from './UsersTab'
 import { AdminsTab } from './AdminsTab'
 import { CalendarTab } from './CalendarTab'
@@ -17,6 +18,7 @@ import { CouponResetSettings } from './CouponResetSettings'
 const TABS = [
   'General',
   'Merchants',
+  'Voting',
   'Calendar',
   'Banners',
   'About Us',
@@ -86,6 +88,7 @@ export function AdminPage() {
 
           {tab === 'General' && <GeneralTab />}
           {tab === 'Merchants' && <MerchantsTab />}
+          {tab === 'Voting' && <VotingTab />}
           {tab === 'Calendar' && <CalendarTab />}
           {tab === 'Banners' && <BannersTab />}
           {tab === 'About Us' && <AboutUsTab />}

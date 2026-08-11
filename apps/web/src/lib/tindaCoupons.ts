@@ -22,12 +22,12 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function ticketField(source: TindaCouponSource): {
-  total: 'quizBowlTicketsTotal' | 'taskedTicketsTotal'
-  issued: 'quizBowlTicketsIssued' | 'taskedTicketsIssued'
+  total: 'quizBowlTicketsTotal' | 'taskedTicketsTotal' | 'votingTicketsTotal'
+  issued: 'quizBowlTicketsIssued' | 'taskedTicketsIssued' | 'votingTicketsIssued'
 } {
-  return source === 'quizBowl'
-    ? { total: 'quizBowlTicketsTotal', issued: 'quizBowlTicketsIssued' }
-    : { total: 'taskedTicketsTotal', issued: 'taskedTicketsIssued' }
+  if (source === 'quizBowl') return { total: 'quizBowlTicketsTotal', issued: 'quizBowlTicketsIssued' }
+  if (source === 'tasked') return { total: 'taskedTicketsTotal', issued: 'taskedTicketsIssued' }
+  return { total: 'votingTicketsTotal', issued: 'votingTicketsIssued' }
 }
 
 // True once a game can no longer hand out any TindaCoupon — either its

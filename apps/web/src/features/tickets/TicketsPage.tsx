@@ -11,6 +11,7 @@ import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
 const SOURCE_LABEL: Record<TindaCouponWithId['source'], string> = {
   quizBowl: 'Quiz Bowl',
   tasked: 'taSKed',
+  voting: 'Voting',
 }
 
 function CouponCard({ coupon, merchant }: { coupon: TindaCouponWithId; merchant: MerchantWithId | undefined }) {

@@ -2,7 +2,13 @@ import { useState } from 'react'
 import type { MerchantWithId } from '../../lib/merchants'
 import { resetAllCouponCounts, resetGameCouponCount, resetMerchantCouponCount } from '../../lib/couponAdmin'
 
-type ActionKey = 'all' | 'quizBowl' | 'tasked' | 'merchant'
+type ActionKey = 'all' | 'quizBowl' | 'tasked' | 'voting' | 'merchant'
+
+const GAME_LABEL: Record<'quizBowl' | 'tasked' | 'voting', string> = {
+  quizBowl: 'Quiz Bowl',
+  tasked: 'taSKed',
+  voting: 'Voting',
+}
 
 export function CouponResetSettings({ merchants }: { merchants: MerchantWithId[] }) {
   const [open, setOpen] = useState(false)
@@ -17,19 +23,19 @@ export function CouponResetSettings({ merchants }: { merchants: MerchantWithId[]
     setMessage(null)
     try {
       const count = await resetAllCouponCounts()
-      setMessage(`Reset counts for ${count} merchant${count === 1 ? '' : 's'} and both games.`)
+      setMessage(`Reset counts for ${count} merchant${count === 1 ? '' : 's'} and all games.`)
     } finally {
       setRunning(null)
     }
   }
 
-  const handleResetGame = async (source: 'quizBowl' | 'tasked') => {
+  const handleResetGame = async (source: 'quizBowl' | 'tasked' | 'voting') => {
     setConfirming(null)
     setRunning(source)
     setMessage(null)
     try {
       await resetGameCouponCount(source)
-      setMessage(`Reset ${source === 'quizBowl' ? 'Quiz Bowl' : 'taSKed'}'s issued count.`)
+      setMessage(`Reset ${GAME_LABEL[source]}'s issued count.`)
     } finally {
       setRunning(null)
     }
@@ -115,11 +121,9 @@ export function CouponResetSettings({ merchants }: { merchants: MerchantWithId[]
 
             <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-3">
               <p className="text-xs font-medium text-white/60">Per game</p>
-              {confirming === 'quizBowl' || confirming === 'tasked' ? (
+              {confirming === 'quizBowl' || confirming === 'tasked' || confirming === 'voting' ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-white/50">
-                    Reset {confirming === 'quizBowl' ? 'Quiz Bowl' : 'taSKed'}'s count?
-                  </span>
+                  <span className="text-xs text-white/50">Reset {GAME_LABEL[confirming]}'s count?</span>
                   <button
                     type="button"
                     onClick={() => void handleResetGame(confirming)}
@@ -152,6 +156,14 @@ export function CouponResetSettings({ merchants }: { merchants: MerchantWithId[]
                     className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 disabled:opacity-50"
                   >
                     {running === 'tasked' ? 'Resetting…' : 'taSKed'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming('voting')}
+                    disabled={running === 'voting'}
+                    className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 disabled:opacity-50"
+                  >
+                    {running === 'voting' ? 'Resetting…' : 'Voting'}
                   </button>
                 </div>
               )}

@@ -11,7 +11,6 @@ import { awardTindaCoupon, isGameSoldOut, subscribeToMyCoupons, type TindaCoupon
 import { useAuth } from '../../hooks/useAuth'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
-import { BackButton } from '../../components/BackButton'
 import { CouponWinCelebration } from '../../components/tindaCoupons/CouponWinCelebration'
 import { buildQuizRound, questionKey, type QuizRoundQuestion } from './buildQuizRound'
 import { formatCooldown } from '../../lib/time'
@@ -234,7 +233,6 @@ export function QuizBowlGame() {
   if (status === 'intro') {
     return (
       <div className="relative flex w-full max-w-lg flex-col items-center gap-5 rounded-2xl bg-white/5 p-6 text-center text-white sm:p-8">
-        <BackButton className="left-3 top-3" />
         <h2 className="text-2xl font-semibold sm:text-3xl">Quiz Bowl Game!</h2>
         <div className="flex flex-col gap-2 text-sm text-white/70 sm:text-base">
           <p>
