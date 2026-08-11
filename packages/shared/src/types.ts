@@ -2,6 +2,16 @@ export type UserRole = 'player' | 'admin'
 
 export type Gender = 'male' | 'female' | 'nonbinary' | 'self-describe' | 'prefer-not-to-say'
 
+export type CurrentStatus =
+  | 'student'
+  | 'employed'
+  | 'self-employed'
+  | 'looking-for-work'
+  | 'not-studying-or-working'
+  | 'other'
+
+export type StudentLevel = 'junior-high' | 'senior-high' | 'college'
+
 export interface UserDoc {
   displayName: string
   email: string
@@ -15,6 +25,22 @@ export interface UserDoc {
   gender: Gender | null
   genderSelfDescribe: string | null
   consentAcceptedAt: number | null
+  // KK Profiling: education/employment status.
+  currentStatus: CurrentStatus | null
+  studentLevel: StudentLevel | null
+  currentStatusOther: string | null
+  // KK Profiling: skills/talents and interests, both "select all that
+  // apply" — stored as the option labels themselves rather than a code,
+  // with a literal 'Other' entry pointing at the matching *Other field
+  // when someone picks it.
+  skills: string[]
+  skillsOther: string | null
+  interests: string[]
+  interestsOther: string | null
+  // KK Profiling: open feedback on what programs/support they'd want
+  // from the SK. Deliberately optional — not required to complete a
+  // profile, unlike everything else on this doc.
+  skVoice: string
   quizBowl: {
     hasWon: boolean
     wonAt: number | null

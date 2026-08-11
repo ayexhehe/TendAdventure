@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore'
 import type { UserDoc } from '@tindadventure/shared'
 import { db } from './firebase'
 
@@ -32,4 +32,15 @@ export async function recordTaskedWin(uid: string) {
   await updateDoc(doc(db, 'users', uid), {
     tasked: { ticketAwarded: true, completedAt: Date.now() },
   })
+}
+
+// Admin-only (enforced by rules, not just this check). Deletes only the
+// Firestore profile doc — their sign-in still works, and their next visit
+// just re-creates a blank profile and re-triggers the KK Profiling prompt
+// as if they were new. Does not touch their Firebase Auth account, game
+// progress, votes, or TindaCoupons — this is a profile reset, not an
+// account ban.
+export async function deleteUserProfile(uid: string) {
+  if (!db) return
+  await deleteDoc(doc(db, 'users', uid))
 }

@@ -7,6 +7,7 @@ import {
   addVotingPerformer,
   deleteVotingCategory,
   deleteVotingPerformer,
+  resetAllVotes,
   setVotingCategoryHidden,
   subscribeToVotingCategories,
   subscribeToVotingPerformers,
@@ -109,6 +110,30 @@ export function VotingTab() {
       await saveGameSettings({ votingWindowEndsAt: Date.now() })
     } finally {
       setStoppingWindow(false)
+    }
+  }
+
+  // Reset votes
+  const [resetConfirming, setResetConfirming] = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [resetMessage, setResetMessage] = useState<string | null>(null)
+
+  const handleResetVotes = async () => {
+    if (resetConfirmText.trim().toUpperCase() !== 'DELETE') return
+    setResetConfirming(false)
+    setResetConfirmText('')
+    setResetting(true)
+    setResetError(null)
+    setResetMessage(null)
+    try {
+      const count = await resetAllVotes()
+      setResetMessage(`Reset ${count} vote${count === 1 ? '' : 's'}. Everyone can vote again.`)
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : 'Could not reset votes.')
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -327,6 +352,64 @@ export function VotingTab() {
             </div>
           </div>
           {ticketsError && <p className="text-xs text-red-300">{ticketsError}</p>}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Reset all votes</p>
+              <p className="text-xs text-white/50">
+                Wipes every vote and every result tally so voting starts fresh — e.g. between test
+                rounds, or before reusing these categories for a separate election later. Already-
+                awarded TindaCoupons are never touched. Only works while no round is live.
+              </p>
+            </div>
+            {resetConfirming ? (
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <span className="text-[11px] text-white/50">Type DELETE to confirm</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={resetConfirmText}
+                    onChange={(e) => setResetConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                    autoFocus
+                    className="w-24 rounded-md bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleResetVotes()}
+                    disabled={resetting || resetConfirmText.trim().toUpperCase() !== 'DELETE'}
+                    className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    {resetting ? 'Resetting…' : 'Confirm'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetConfirming(false)
+                      setResetConfirmText('')
+                    }}
+                    className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setResetConfirming(true)}
+                disabled={resetting || windowLive}
+                title={windowLive ? 'Stop the round first.' : undefined}
+                className="shrink-0 rounded-full bg-red-500/20 px-4 py-2 text-xs font-medium text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reset all votes
+              </button>
+            )}
+          </div>
+          {resetError && <p className="text-xs text-red-300">{resetError}</p>}
+          {resetMessage && <p className="text-xs text-emerald-300">{resetMessage}</p>}
         </div>
       </section>
 

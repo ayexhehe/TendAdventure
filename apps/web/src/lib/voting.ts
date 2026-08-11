@@ -9,12 +9,28 @@ import {
   query,
   setDoc,
   where,
+  writeBatch,
+  type DocumentReference,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import type { VotingCategoryDoc, VotingPerformerDoc, VotingResultDoc, VoteDoc } from '@tindadventure/shared'
 import { db, storage } from './firebase'
 import { compressImage } from './image'
 import { getGameSettings } from './gameSettings'
+
+const BATCH_SIZE = 400
+
+async function commitInBatches(
+  refs: DocumentReference[],
+  apply: (batch: ReturnType<typeof writeBatch>, ref: DocumentReference) => void,
+) {
+  if (!db) return
+  for (let i = 0; i < refs.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db)
+    for (const ref of refs.slice(i, i + BATCH_SIZE)) apply(batch, ref)
+    await batch.commit()
+  }
+}
 
 export interface VotingCategoryWithId extends VotingCategoryDoc {
   id: string
@@ -70,17 +86,21 @@ export function subscribeToVotingResults(onChange: (results: Record<string, numb
   )
 }
 
+async function assertRoundNotLive(message: string): Promise<void> {
+  const settings = await getGameSettings()
+  const windowEndsAt = settings?.votingWindowEndsAt
+  if (windowEndsAt != null && Date.now() < windowEndsAt) {
+    throw new Error(message)
+  }
+}
+
 // Refuses to delete a performer/category that already has votes, or while
 // a round is currently live — either one risks silently destroying real
 // vote data (voteCount lives only on the result doc, with no other copy)
 // or pulling a choice out from under someone mid-vote. Callers should
 // steer admins toward "Hide" instead, which preserves everything.
 async function assertSafeToRemoveVotingContent(): Promise<void> {
-  const settings = await getGameSettings()
-  const windowEndsAt = settings?.votingWindowEndsAt
-  if (windowEndsAt != null && Date.now() < windowEndsAt) {
-    throw new Error('Cannot delete while a round is live — stop the round first, or hide it instead.')
-  }
+  await assertRoundNotLive('Cannot delete while a round is live — stop the round first, or hide it instead.')
 }
 
 async function performerHasVotes(performerId: string): Promise<boolean> {
@@ -193,4 +213,26 @@ export async function castVote(uid: string, categoryId: string, performerId: str
   if (!db) return
   const vote: VoteDoc = { uid, categoryId, performerId, votedAt: Date.now() }
   await setDoc(doc(db, 'votes', `${uid}_${categoryId}`), vote)
+}
+
+// Admin-only (enforced by rules, not just this check). Wipes every vote
+// and every result tally so voting starts fresh — e.g. between testing
+// passes, or if the same categories get reused for a genuinely separate
+// election later. Deliberately leaves TindaCoupons untouched: a vote reset
+// is not a prize reset, so nothing already awarded is taken back — that
+// stays a separate, existing action (Tickets tab / coupon reset settings).
+// Refuses while a round is live, since resetting votes out from under
+// people actively voting would corrupt their in-progress state.
+export async function resetAllVotes(): Promise<number> {
+  if (!db) return 0
+  await assertRoundNotLive('Cannot reset votes while a round is live — stop the round first.')
+  const [votesSnap, resultsSnap] = await Promise.all([
+    getDocs(collection(db, 'votes')),
+    getDocs(collection(db, 'votingResults')),
+  ])
+  await commitInBatches(
+    [...votesSnap.docs.map((d) => d.ref), ...resultsSnap.docs.map((d) => d.ref)],
+    (batch, ref) => batch.delete(ref),
+  )
+  return votesSnap.size
 }

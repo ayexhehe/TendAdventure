@@ -138,18 +138,20 @@ service cloud.firestore {
     // so results can never be read by a voter (or anyone with the app's
     // public Firebase config, which is everyone) while a round is live.
     // Written only by the vote-created Cloud Function trigger (Admin SDK,
-    // bypasses these rules) — not even an admin client can write it.
+    // bypasses these rules) — not even an admin client can create/update
+    // it. Delete is the one admin escape hatch, for the "reset all votes"
+    // admin action (clearing tallies back to zero between rounds/testing).
     match /votingResults/{performerId} {
       allow read: if isAdminEmail();
-      allow write: if false;
+      allow create, update: if false;
+      allow delete: if isAdminEmail();
     }
 
     // One vote per (voter, category): the doc id is `${uid}_${categoryId}`,
-    // so a repeat vote just collides with the existing doc — and since
-    // update/delete are never allowed, a cast vote can never be changed.
-    // Everyone votes against the same shared clock — a vote only goes
-    // through while `now` is still before the admin-started round's
-    // `votingWindowEndsAt` on config/gameSettings.
+    // so a repeat vote just collides with the existing doc — and a cast
+    // vote can never be edited. Everyone votes against the same shared
+    // clock — a vote only goes through while `now` is still before the
+    // admin-started round's `votingWindowEndsAt` on config/gameSettings.
     match /votes/{voteId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.uid;
       allow read: if isAdminEmail();
@@ -164,7 +166,12 @@ service cloud.firestore {
         && request.time.toMillis() <=
            get(/databases/$(database)/documents/config/gameSettings).data.votingWindowEndsAt;
 
-      allow update, delete: if false;
+      allow update: if false;
+
+      // Admin-only reset (e.g. "reset all votes" between rounds/testing).
+      // A signed-in voter can never delete their own vote — only an admin
+      // bulk reset can, and it's a full wipe, not a per-vote takeback.
+      allow delete: if isAdminEmail();
     }
 
     match /activities/{activityId} {
@@ -234,6 +241,12 @@ service cloud.firestore {
       // no other field on their profile.
       allow update: if isAdminEmail()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tasked']);
+
+      // Admin-only profile reset (Users tab "Delete" action). A player
+      // can never delete their own doc — only an admin bulk-reset can,
+      // and it only removes the profile doc itself, not their auth
+      // account or any other collection.
+      allow delete: if isAdminEmail();
     }
 
     match /quizBowlAttempts/{uid} {
