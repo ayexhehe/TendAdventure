@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { useState, type FormEvent, type InputHTMLAttributes } from 'react'
 import { updateProfile } from 'firebase/auth'
 import { doc, updateDoc } from 'firebase/firestore'
 import type { CurrentStatus, Gender, StudentLevel } from '@tindadventure/shared'
@@ -86,7 +86,10 @@ function FloatingInput({
   ...rest
 }: { label: string; value: string } & InputHTMLAttributes<HTMLInputElement>) {
   const [focused, setFocused] = useState(false)
-  const floated = focused || value.length > 0
+  // Date inputs always render their own "mm/dd/yyyy" placeholder text,
+  // regardless of value — there's no visually-empty state to center the
+  // label in, so it stays floated permanently instead of overlapping it.
+  const floated = focused || value.length > 0 || rest.type === 'date'
   return (
     <div className="relative">
       <input
@@ -107,80 +110,160 @@ function FloatingInput({
   )
 }
 
-function FloatingSelect({
+// A single-select dropdown styled to match the rest of the form — a plain
+// <select>'s options popup is rendered by the OS/browser itself and can't
+// be dark-themed, so this opens its own styled overlay panel instead.
+function FloatingDropdown({
   label,
   value,
-  children,
-  ...rest
-}: { label: string; value: string; children: ReactNode } & SelectHTMLAttributes<HTMLSelectElement>) {
-  const [focused, setFocused] = useState(false)
-  const floated = focused || value.length > 0
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const floated = open || value.length > 0
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? ''
+
   return (
     <div className="relative">
-      <select
-        {...rest}
-        value={value}
-        onFocus={(e) => {
-          setFocused(true)
-          rest.onFocus?.(e)
-        }}
-        onBlur={(e) => {
-          setFocused(false)
-          rest.onBlur?.(e)
-        }}
-        className={fieldClass}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${fieldClass} flex items-center justify-between gap-2 text-left`}
       >
-        {children}
-      </select>
+        <span className={`truncate ${selectedLabel ? 'text-white' : 'text-transparent'}`}>
+          {selectedLabel || ' '}
+        </span>
+        <svg
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className={`h-4 w-4 shrink-0 text-white/50 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
       <FloatingLabel text={label} floated={floated} />
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-10"
+          />
+          <div className="absolute z-20 mt-1.5 max-h-60 w-full overflow-y-auto rounded-md bg-[#0d2fa0] p-1.5 ring-1 ring-white/15">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                }}
+                className={`block w-full rounded-md px-2.5 py-2 text-left text-sm transition ${
+                  value === option.value ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/5'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-function CheckboxGroup({
-  legend,
+// A "select all that apply" multi-select, collapsed into a dropdown
+// instead of a big always-open checkbox grid — the closed button shows a
+// comma-joined summary of what's picked so far, and opens an overlay
+// panel of checkboxes on tap, closing on an outside click.
+function MultiSelectDropdown({
+  label,
   hint,
   options,
   selected,
   onToggle,
 }: {
-  legend: string
+  label: string
   hint: string
   options: string[]
   selected: string[]
   onToggle: (option: string) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const floated = open || selected.length > 0
+
   return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="text-xs font-medium text-white/50">
-        {legend} <span className="text-white/30">— {hint}</span>
-      </legend>
-      <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-        {options.map((option) => (
-          <label
-            key={option}
-            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition ${
-              selected.includes(option) ? 'bg-white/20 text-white' : 'bg-white/5 text-white/70'
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(option)}
-              onChange={() => onToggle(option)}
-              className="shrink-0"
-            />
-            {option}
-          </label>
-        ))}
-      </div>
-    </fieldset>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${fieldClass} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${selected.length ? 'text-white' : 'text-transparent'}`}>
+          {selected.length > 0 ? selected.join(', ') : ' '}
+        </span>
+        <svg
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className={`h-4 w-4 shrink-0 text-white/50 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      <FloatingLabel text={label} floated={floated} />
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-10"
+          />
+          <div className="absolute z-20 mt-1.5 max-h-60 w-full overflow-y-auto rounded-md bg-[#0d2fa0] p-1.5 ring-1 ring-white/15">
+            <p className="px-2 pt-1 pb-2 text-[11px] text-white/40">{hint}</p>
+            {options.map((option) => (
+              <label
+                key={option}
+                className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition ${
+                  selected.includes(option) ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/5'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option)}
+                  onChange={() => onToggle(option)}
+                  className="shrink-0"
+                />
+                {option}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
 export function CompleteProfilePrompt() {
   const { user, refreshUser } = useAuth()
-  const [fullName, setFullName] = useState('')
-  const [nickname, setNickname] = useState(user?.displayName ?? '')
+  const [fullName, setFullName] = useState(user?.displayName ?? '')
+  const [nickname, setNickname] = useState('')
   const [sitio, setSitio] = useState('')
   const [birthday, setBirthday] = useState('')
   const [gender, setGender] = useState<Gender | ''>('')
@@ -313,18 +396,12 @@ export function CompleteProfilePrompt() {
             />
             {age !== null && <p className="text-xs text-white/50">{age} years old</p>}
           </div>
-          <FloatingSelect
+          <FloatingDropdown
             label="Gender"
             value={gender}
-            onChange={(e) => setGender(e.target.value as Gender)}
-          >
-            <option value="" disabled hidden />
-            {GENDER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value} className="text-black">
-                {option.label}
-              </option>
-            ))}
-          </FloatingSelect>
+            options={GENDER_OPTIONS}
+            onChange={(v) => setGender(v as Gender)}
+          />
           {gender === 'self-describe' && (
             <FloatingInput
               type="text"
@@ -339,31 +416,19 @@ export function CompleteProfilePrompt() {
           <p className="text-xs font-semibold tracking-wide text-white/40 uppercase">
             Education / Employment
           </p>
-          <FloatingSelect
+          <FloatingDropdown
             label="Current status"
             value={currentStatus}
-            onChange={(e) => setCurrentStatus(e.target.value as CurrentStatus)}
-          >
-            <option value="" disabled hidden />
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value} className="text-black">
-                {option.label}
-              </option>
-            ))}
-          </FloatingSelect>
+            options={STATUS_OPTIONS}
+            onChange={(v) => setCurrentStatus(v as CurrentStatus)}
+          />
           {currentStatus === 'student' && (
-            <FloatingSelect
+            <FloatingDropdown
               label="Education level"
               value={studentLevel}
-              onChange={(e) => setStudentLevel(e.target.value as StudentLevel)}
-            >
-              <option value="" disabled hidden />
-              {STUDENT_LEVEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} className="text-black">
-                  {option.label}
-                </option>
-              ))}
-            </FloatingSelect>
+              options={STUDENT_LEVEL_OPTIONS}
+              onChange={(v) => setStudentLevel(v as StudentLevel)}
+            />
           )}
           {currentStatus === 'other' && (
             <FloatingInput
@@ -376,12 +441,9 @@ export function CompleteProfilePrompt() {
         </div>
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4">
-          <p className="text-xs font-semibold tracking-wide text-white/40 uppercase">
-            Skills / Talents
-          </p>
-          <CheckboxGroup
-            legend="What are your skills or talents?"
-            hint="select all that apply"
+          <MultiSelectDropdown
+            label="Skills / talents"
+            hint="Select all that apply"
             options={SKILL_OPTIONS}
             selected={skills}
             onToggle={toggleSkill}
@@ -397,10 +459,9 @@ export function CompleteProfilePrompt() {
         </div>
 
         <div className="flex flex-col gap-3 border-t border-white/10 pt-4">
-          <p className="text-xs font-semibold tracking-wide text-white/40 uppercase">Interests</p>
-          <CheckboxGroup
-            legend="What are you interested in?"
-            hint="select all that apply"
+          <MultiSelectDropdown
+            label="Interests"
+            hint="Select all that apply"
             options={INTEREST_OPTIONS}
             selected={interests}
             onToggle={toggleInterest}
