@@ -125,7 +125,7 @@ export function GeneralTab() {
               quizBowlTicketsIssued: 0,
               taskedTicketsTotal: 0,
               taskedTicketsIssued: 0,
-              merchantsSectionEnabled: true,
+              merchantSlotsTotal: 0,
               votingWindowMinutes: 10,
               votingWindowEndsAt: null,
               votingTicketsTotal: 0,

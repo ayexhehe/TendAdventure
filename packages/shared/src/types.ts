@@ -95,6 +95,10 @@ export interface ActivityDoc {
   description: string
   imageURLs: string[]
   createdAt: number
+  // Admin-set spotlight flag. Highlighted activities are sorted to the
+  // front of the "Upcoming" list (on both the Calendar page and the
+  // landing page preview) instead of strict date order.
+  highlighted: boolean
 }
 
 export interface BannerDoc {
@@ -167,6 +171,13 @@ export interface TaskedEntrantDoc {
   task3MessageId: string | null
   task3CompletedAt: number | null
   allTasksCompletedAt: number | null
+  // taSKed is the only game left that awards its own TindaCoupon directly
+  // from the client (Quiz Bowl and Voting both moved server-side) — this
+  // is the idempotency lock the award transaction flips atomically
+  // alongside creating the coupon, so a race between two open tabs/devices
+  // can never result in the same player getting two coupons. See
+  // lib/tindaCoupons.ts's awardTindaCoupon.
+  couponAwarded: boolean
 }
 
 // Public slug -> uid pointer, so the anonymous /i/:slug invite page can
@@ -180,9 +191,14 @@ export interface TaskedSlugDoc {
   createdAt: number
 }
 
-// One doc per logged click on a personal invite link. `visitorId` is a
-// client-generated, localStorage-persisted id used only for lightweight
-// client-side de-duplication (refreshing the link shouldn't recount).
+// One doc per (owner, real visitor account) pair, doc id
+// `${ownerUid}_${visitorId}` — that deterministic id is what makes a
+// click only ever countable once per real signed-in visitor: a repeat
+// click just collides with the existing doc, which the rules never allow
+// to be updated. `visitorId` is the *clicking visitor's own Firebase Auth
+// uid* (not a spoofable client-generated id) — logging a click requires
+// being signed in specifically so this can't be faked by scripting
+// anonymous writes.
 export interface TaskedClickLogDoc {
   ownerUid: string
   visitorId: string
@@ -247,7 +263,12 @@ export interface GameSettingsDoc {
   quizBowlTicketsIssued: number
   taskedTicketsTotal: number
   taskedTicketsIssued: number
-  merchantsSectionEnabled: boolean
+  // Caps how many merchants can be listed at all (0 means unlimited).
+  // Both the landing page and the Merchants page derive their "Be one of
+  // the Tindahan!" join CTA from this directly — it's shown whenever the
+  // live merchant count is still under this number, alongside merchant
+  // highlights (or on its own, if there are no merchants yet).
+  merchantSlotsTotal: number
   // Voting is the third game: a live, timed round (e.g. "SoundCheck Clash
   // People's Choice — 10 minutes") that the admin starts on the spot.
   // Everyone votes against the same shared clock — there's no per-player

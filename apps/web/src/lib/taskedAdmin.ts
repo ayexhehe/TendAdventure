@@ -41,6 +41,7 @@ export async function resetAllTaskedPlayers(): Promise<number> {
         task3MessageId: null,
         task3CompletedAt: null,
         allTasksCompletedAt: null,
+        couponAwarded: false,
       }),
   )
 

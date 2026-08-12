@@ -17,6 +17,14 @@ export interface ActivityWithId extends ActivityDoc {
   id: string
 }
 
+// Highlighted activities float to the front, in front of the rest —
+// stable sort, so activities within each group (highlighted / not) keep
+// whatever order they already arrived in (e.g. date-ascending, from the
+// subscribeToActivities query).
+export function sortHighlightedFirst<T extends { highlighted: boolean }>(items: T[]): T[] {
+  return [...items].sort((a, b) => Number(Boolean(b.highlighted)) - Number(Boolean(a.highlighted)))
+}
+
 export function subscribeToActivities(onChange: (activities: ActivityWithId[]) => void) {
   if (!db) return () => {}
 
@@ -55,6 +63,7 @@ export async function addActivity(input: {
   location: string
   description: string
   imageURLs: string[]
+  highlighted: boolean
 }) {
   if (!db) return
 
@@ -66,6 +75,7 @@ export async function addActivity(input: {
     description: input.description.trim(),
     imageURLs: input.imageURLs,
     createdAt: Date.now(),
+    highlighted: input.highlighted,
   }
   await addDoc(collection(db, 'activities'), activity)
 }
@@ -80,6 +90,7 @@ export async function updateActivity(
     description: string
     imageURLs: string[]
     createdAt: number
+    highlighted: boolean
   },
 ) {
   if (!db) return
@@ -92,6 +103,7 @@ export async function updateActivity(
     description: input.description.trim(),
     imageURLs: input.imageURLs,
     createdAt: input.createdAt,
+    highlighted: input.highlighted,
   }
   await setDoc(doc(db, 'activities', id), activity)
 }

@@ -6,13 +6,18 @@ import { GameCard } from '../../components/games/GameCard'
 import { HowToPlayModal } from '../../components/games/HowToPlayModal'
 import { QuizBowlIcon, TaskedIcon, VotingIcon } from '../../components/games/gameIcons'
 import { MerchantCard } from '../../components/merchants/MerchantCard'
+import { BeATindahanCTA } from '../../components/merchants/BeATindahanCTA'
 import { ActivityCard } from '../../components/calendar/ActivityCard'
 import { PaginatedCardGrid } from '../../components/PaginatedCardGrid'
 import { ViewAllCard } from '../../components/ViewAllCard'
 import { CardSkeletonGrid, SkeletonBlock } from '../../components/skeleton/Skeletons'
 import { subscribeToBanners, type BannerWithId } from '../../lib/banners'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
-import { subscribeToActivities, type ActivityWithId } from '../../lib/activities'
+import {
+  subscribeToActivities,
+  sortHighlightedFirst,
+  type ActivityWithId,
+} from '../../lib/activities'
 import { subscribeToGameSettings } from '../../lib/gameSettings'
 import { isGameSoldOut } from '../../lib/tindaCoupons'
 import { formatCooldown } from '../../lib/time'
@@ -74,13 +79,14 @@ export function LandingPage() {
     document.querySelector(location.hash)?.scrollIntoView({ behavior: 'smooth' })
   }, [location.hash])
 
-  const upcomingActivities = activities.filter((a) => a.date >= todayISO())
+  const upcomingActivities = sortHighlightedFirst(activities.filter((a) => a.date >= todayISO()))
   const quizBowlOpen = gameSettings?.quizBowlOpen ?? true
   const taskedOpen = gameSettings?.taskedOpen ?? true
   const votingWindowEndsAt = gameSettings?.votingWindowEndsAt ?? null
   const votingLive = votingWindowEndsAt != null && votingWindowEndsAt > now
   const votingRemainingMs = votingWindowEndsAt != null ? votingWindowEndsAt - now : 0
-  const merchantsSectionEnabled = gameSettings?.merchantsSectionEnabled ?? true
+  const merchantSlotsTotal = gameSettings?.merchantSlotsTotal ?? 0
+  const merchantSlotsOpen = merchantSlotsTotal === 0 || merchants.length < merchantSlotsTotal
   const quizSoldOut = isGameSoldOut('quizBowl', gameSettings, merchants)
   const taskedSoldOut = isGameSoldOut('tasked', gameSettings, merchants)
   const allGamesClosed = !quizBowlOpen && !taskedOpen && !votingLive
@@ -223,50 +229,25 @@ export function LandingPage() {
             </div>
           </section>
 
-          {merchantsSectionEnabled ? (
-            (merchantsLoading || merchants.length > 0) && (
-              <section className="flex flex-col gap-4">
-                <h2 className="text-xl font-semibold text-white">Know the Tindahans</h2>
-                {merchantsLoading ? (
-                  <CardSkeletonGrid
-                    count={3}
-                    className="grid grid-cols-1 gap-4 sm:grid-cols-3"
-                  />
-                ) : (
-                  <PaginatedCardGrid cards={merchantCards} />
-                )}
-              </section>
-            )
-          ) : (
-            <section>
-              <Link
-                to="/be-a-tindahan"
-                className="group flex w-full flex-col items-start gap-5 overflow-hidden rounded-3xl bg-linear-to-br from-amber-400/25 via-white/10 to-transparent p-6 ring-1 ring-amber-300/40 transition hover:ring-amber-300/70 sm:flex-row sm:items-center sm:justify-between sm:p-8"
-              >
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.2em] text-amber-300 uppercase">
-                    🛍️ Join Us
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-white sm:text-2xl">
-                    Be one of the Tindahan!
-                  </h3>
-                  <p className="mt-1 text-sm text-white/70">
-                    Get a FREE booth and ₱3,000 worth of TindaCoupon subsidy for your products or
-                    services — promote what you sell with guaranteed income.
-                  </p>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#113DCB] transition group-hover:bg-white/90 group-hover:gap-3">
-                  See Guidelines
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                    <path
-                      fillRule="evenodd"
-                      d="M7.21 14.77a.75.75 0 0 1 0-1.06L10.94 10 7.21 6.29a.75.75 0 1 1 1.06-1.06l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </Link>
+          {merchantsLoading ? (
+            <section className="flex flex-col gap-4">
+              <h2 className="text-xl font-semibold text-white">Know the Tindahans</h2>
+              <CardSkeletonGrid count={3} className="grid grid-cols-1 gap-4 sm:grid-cols-3" />
             </section>
+          ) : (
+            <>
+              {merchants.length > 0 && (
+                <section className="flex flex-col gap-4">
+                  <h2 className="text-xl font-semibold text-white">Know the Tindahans</h2>
+                  <PaginatedCardGrid cards={merchantCards} />
+                </section>
+              )}
+              {merchantSlotsOpen && (
+                <section>
+                  <BeATindahanCTA />
+                </section>
+              )}
+            </>
           )}
 
           <section id="calendar-of-activities" className="flex flex-col gap-4 scroll-mt-24">

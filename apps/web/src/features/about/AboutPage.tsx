@@ -46,7 +46,7 @@ export function AboutPage() {
             )}
 
             {about?.description ? (
-              <div className="grid gap-2 sm:grid-cols-[110px_1fr] sm:gap-6">
+              <div className="grid gap-2 sm:grid-cols-[110px_1fr] sm:items-start sm:gap-6">
                 <p className="text-xs font-medium tracking-[0.15em] text-white/35 uppercase">
                   Our Story
                 </p>

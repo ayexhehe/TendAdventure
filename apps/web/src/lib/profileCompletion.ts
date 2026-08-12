@@ -35,6 +35,16 @@ export function isProfileComplete(user: User | null, userDoc: UserDoc | null): b
   return hasRequiredProfileFields(userDoc, user?.displayName)
 }
 
+// The single source of truth for the "verified" checkmark shown across
+// the app (header avatar badge, profile page) — both conditions must
+// hold: required KK Profiling fields filled in, AND the account's email
+// confirmed. Google sign-ins are always emailVerified === true already,
+// so this only ever blocks on the KK fields for them; password accounts
+// need both.
+export function isFullyVerified(user: User | null, userDoc: UserDoc | null): boolean {
+  return isProfileComplete(user, userDoc) && !!user?.emailVerified
+}
+
 // Same checks, but usable from the admin panel where only the Firestore
 // doc is available (not a Firebase Auth User for someone else's account).
 // userDoc.displayName mirrors the auth account's displayName, kept in

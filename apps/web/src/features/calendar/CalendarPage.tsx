@@ -16,7 +16,7 @@ function todayISO(): string {
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[110px_1fr] sm:gap-4">
+    <div className="grid gap-1 sm:grid-cols-[110px_1fr] sm:items-start sm:gap-4">
       <p className="text-xs font-medium tracking-[0.15em] text-white/35 uppercase">{label}</p>
       <p className="text-sm leading-relaxed text-white/70 md:text-base">{value}</p>
     </div>
@@ -54,9 +54,11 @@ function ActivitySpotlight({ activity }: { activity: ActivityWithId }) {
           <h2 className="text-2xl font-semibold text-white md:text-3xl">{activity.title}</h2>
         </div>
 
-        {activity.location && <DetailRow label="Location" value={activity.location} />}
-        {activity.description && <DetailRow label="About" value={activity.description} />}
-        {activity.committeeHead && <DetailRow label="Committee" value={activity.committeeHead} />}
+        <div className="flex flex-col gap-5">
+          {activity.location && <DetailRow label="Location" value={activity.location} />}
+          {activity.description && <DetailRow label="About" value={activity.description} />}
+          {activity.committeeHead && <DetailRow label="Committee" value={activity.committeeHead} />}
+        </div>
       </div>
     </div>
   )
@@ -66,6 +68,7 @@ export function CalendarPage() {
   const [activities, setActivities] = useState<ActivityWithId[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [featuredPage, setFeaturedPage] = useState(0)
   const [upcomingPage, setUpcomingPage] = useState(0)
   const [pastPage, setPastPage] = useState(0)
   const [searchParams] = useSearchParams()
@@ -90,15 +93,23 @@ export function CalendarPage() {
   const rest = selected ? activities.filter((a) => a.id !== selectedId) : activities
 
   const today = todayISO()
-  const upcoming = rest.filter((a) => a.date >= today)
+  const upcomingAll = rest.filter((a) => a.date >= today)
+  const featured = upcomingAll.filter((a) => a.highlighted)
+  const upcoming = upcomingAll.filter((a) => !a.highlighted)
   const past = rest.filter((a) => a.date < today).slice().reverse()
+  const featuredPageCount = Math.max(1, Math.ceil(featured.length / PAGE_SIZE))
   const upcomingPageCount = Math.max(1, Math.ceil(upcoming.length / PAGE_SIZE))
   const pastPageCount = Math.max(1, Math.ceil(past.length / PAGE_SIZE))
 
   useEffect(() => {
+    setFeaturedPage(0)
     setUpcomingPage(0)
     setPastPage(0)
   }, [selectedId])
+
+  useEffect(() => {
+    if (featuredPage >= featuredPageCount) setFeaturedPage(0)
+  }, [featuredPage, featuredPageCount])
 
   useEffect(() => {
     if (upcomingPage >= upcomingPageCount) setUpcomingPage(0)
@@ -130,6 +141,31 @@ export function CalendarPage() {
             )}
 
             {selected && <ActivitySpotlight activity={selected} />}
+
+            {featured.length > 0 && (
+              <div className="flex flex-col gap-4">
+                <h2 className="text-lg font-semibold text-amber-200">⭐ Featured Events</h2>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  {featured.map((a, i) => {
+                    const isCurrentPage = Math.floor(i / PAGE_SIZE) === featuredPage
+                    return (
+                      <div key={a.id} className={isCurrentPage ? '' : 'hidden'}>
+                        <ActivityCard
+                          activity={a}
+                          onClick={() => selectActivity(a.id)}
+                          priority={isCurrentPage ? 'high' : 'low'}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+                <Pagination
+                  page={featuredPage}
+                  pageCount={featuredPageCount}
+                  onChange={setFeaturedPage}
+                />
+              </div>
+            )}
 
             {upcoming.length > 0 && (
               <div className="flex flex-col gap-4">

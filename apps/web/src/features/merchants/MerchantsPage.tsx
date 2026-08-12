@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import type { GameSettingsDoc } from '@tindadventure/shared'
 import { Layout } from '../../components/layout/Layout'
 import { MerchantCard } from '../../components/merchants/MerchantCard'
+import { BeATindahanCTA } from '../../components/merchants/BeATindahanCTA'
 import { CardSkeletonGrid, SpotlightSkeleton } from '../../components/skeleton/Skeletons'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
 import { Pagination } from '../../components/Pagination'
 import { subscribeToMerchants, type MerchantWithId } from '../../lib/merchants'
+import { subscribeToGameSettings } from '../../lib/gameSettings'
 
 const PAGE_SIZE = 3
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[110px_1fr] sm:gap-4">
+    <div className="grid gap-1 sm:grid-cols-[110px_1fr] sm:items-start sm:gap-4">
       <p className="text-xs font-medium tracking-[0.15em] text-white/35 uppercase">{label}</p>
       <p className="text-sm leading-relaxed text-white/70 md:text-base">{value}</p>
     </div>
@@ -40,11 +43,13 @@ function MerchantSpotlight({ merchant }: { merchant: MerchantWithId }) {
           <h2 className="text-2xl font-semibold text-white md:text-3xl">{merchant.name}</h2>
         </div>
 
-        {merchant.product && <DetailRow label="Sells" value={merchant.product} />}
-        {merchant.description && <DetailRow label="About" value={merchant.description} />}
-        {merchant.youthRepresentative && (
-          <DetailRow label="Rep" value={merchant.youthRepresentative} />
-        )}
+        <div className="flex flex-col gap-5">
+          {merchant.product && <DetailRow label="Sells" value={merchant.product} />}
+          {merchant.description && <DetailRow label="About" value={merchant.description} />}
+          {merchant.youthRepresentative && (
+            <DetailRow label="Rep" value={merchant.youthRepresentative} />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -56,6 +61,7 @@ export function MerchantsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [searchParams] = useSearchParams()
+  const [gameSettings, setGameSettings] = useState<GameSettingsDoc | null>(null)
 
   useEffect(
     () =>
@@ -65,6 +71,7 @@ export function MerchantsPage() {
       }),
     [],
   )
+  useEffect(() => subscribeToGameSettings(setGameSettings), [])
 
   useEffect(() => {
     const id = searchParams.get('merchant')
@@ -76,6 +83,8 @@ export function MerchantsPage() {
   const selected = merchants.find((m) => m.id === selectedId) ?? null
   const others = selected ? merchants.filter((m) => m.id !== selectedId) : merchants
   const pageCount = Math.max(1, Math.ceil(others.length / PAGE_SIZE))
+  const merchantSlotsTotal = gameSettings?.merchantSlotsTotal ?? 0
+  const merchantSlotsOpen = merchantSlotsTotal === 0 || merchants.length < merchantSlotsTotal
 
   useEffect(() => {
     setPage(0)
@@ -93,19 +102,19 @@ export function MerchantsPage() {
   return (
     <Layout>
       <div className="flex w-full max-w-5xl flex-col gap-6 px-4 py-10">
-        <h1 className="text-2xl font-semibold text-white md:text-3xl">Merchants</h1>
+        <h1 className="text-2xl font-semibold text-white md:text-3xl">
+          {!loading && merchants.length === 0 ? 'Be the First Tindahan!' : 'Know The Tindahans!'}
+        </h1>
 
         {loading ? (
           <div className="flex flex-col gap-6">
             <SpotlightSkeleton />
             <CardSkeletonGrid count={3} />
           </div>
+        ) : merchants.length === 0 ? (
+          <BeATindahanCTA />
         ) : (
           <>
-            {merchants.length === 0 && (
-              <p className="text-sm text-white/60">No merchants yet — check back soon!</p>
-            )}
-
             {selected && <MerchantSpotlight merchant={selected} />}
 
             {others.length > 0 && (
@@ -128,6 +137,8 @@ export function MerchantsPage() {
                 <Pagination page={page} pageCount={pageCount} onChange={setPage} />
               </div>
             )}
+
+            {merchantSlotsOpen && <BeATindahanCTA />}
           </>
         )}
       </div>

@@ -1,5 +1,5 @@
-import { collection, doc, getDocs, onSnapshot, query, runTransaction, updateDoc, where } from 'firebase/firestore'
-import type { GameSettingsDoc, MerchantDoc, TindaCouponDoc, TindaCouponSource } from '@tindadventure/shared'
+import { collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, updateDoc, where } from 'firebase/firestore'
+import type { GameSettingsDoc, MerchantDoc, TaskedEntrantDoc, TindaCouponDoc, TindaCouponSource } from '@tindadventure/shared'
 import { db } from './firebase'
 import { getGameSettings } from './gameSettings'
 import type { MerchantWithId } from './merchants'
@@ -57,6 +57,16 @@ export function isGameSoldOut(
 // already be full (lost the race), the next candidate is tried.
 // Returns null if the game's ticket cap or every merchant's supply is
 // exhausted.
+//
+// taSKed is the only game left that calls this from the client (Quiz Bowl
+// and Voting both award server-side) — for that source specifically, this
+// also enforces a one-time-only lock (`taskedEntrants/{uid}.couponAwarded`)
+// atomically inside the same transaction that creates the coupon. Without
+// it, two open tabs/devices racing to complete the last task could each
+// independently see "not yet awarded" and both successfully create a
+// coupon. The fast pre-check below just avoids wasted transaction
+// attempts in the common (non-racing) case — the transaction is what
+// actually guarantees only one coupon is ever created.
 export async function awardTindaCoupon(
   uid: string,
   source: TindaCouponSource,
@@ -64,6 +74,11 @@ export async function awardTindaCoupon(
   if (!db) return null
   const firestore = db
   const { total: totalField, issued: issuedField } = ticketField(source)
+
+  if (source === 'tasked') {
+    const entrantSnap = await getDoc(doc(firestore, 'taskedEntrants', uid))
+    if ((entrantSnap.data() as TaskedEntrantDoc | undefined)?.couponAwarded) return null
+  }
 
   const settings = await getGameSettings()
   const ticketsTotal = settings?.[totalField] ?? 0
@@ -81,8 +96,17 @@ export async function awardTindaCoupon(
       const coupon = await runTransaction(firestore, async (tx) => {
         const merchantRef = doc(firestore, 'merchants', merchant.id)
         const settingsRef = doc(firestore, 'config', 'gameSettings')
-        const merchantSnap = await tx.get(merchantRef)
-        const settingsSnap = await tx.get(settingsRef)
+        const entrantRef = source === 'tasked' ? doc(firestore, 'taskedEntrants', uid) : null
+
+        const [merchantSnap, settingsSnap, entrantSnap] = await Promise.all([
+          tx.get(merchantRef),
+          tx.get(settingsRef),
+          entrantRef ? tx.get(entrantRef) : Promise.resolve(null),
+        ])
+
+        if (entrantSnap && (entrantSnap.data() as TaskedEntrantDoc | undefined)?.couponAwarded) {
+          return null
+        }
 
         const merchantData = merchantSnap.data() as MerchantDoc | undefined
         if (!merchantData || (merchantData.couponsIssued ?? 0) >= (merchantData.couponSupply ?? 0)) {
@@ -108,6 +132,9 @@ export async function awardTindaCoupon(
         tx.update(merchantRef, { couponsIssued: (merchantData.couponsIssued ?? 0) + 1 })
         if (settingsSnap.exists()) {
           tx.update(settingsRef, { [issuedField]: issuedSoFar + 1 })
+        }
+        if (entrantRef) {
+          tx.update(entrantRef, { couponAwarded: true })
         }
         tx.set(couponRef, couponDoc)
         return { id: couponRef.id, ...couponDoc }
@@ -189,6 +216,12 @@ export async function deleteCoupon(coupon: TindaCouponWithId): Promise<void> {
     if (settingsSnap.exists()) {
       const settingsData = settingsSnap.data() as GameSettingsDoc
       tx.update(settingsRef, { [issuedField]: Math.max(0, (settingsData[issuedField] ?? 0) - 1) })
+    }
+
+    // Release the award lock too, so deleting an erroneous taSKed coupon
+    // doesn't permanently strand that player without a real one.
+    if (coupon.source === 'tasked') {
+      tx.update(doc(firestore, 'taskedEntrants', coupon.uid), { couponAwarded: false })
     }
 
     tx.delete(couponRef)

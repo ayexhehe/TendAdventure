@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { auth } from '../../lib/firebase'
 import { calculateAge } from '../../lib/age'
 import { getInitials } from '../../lib/initials'
+import { isFullyVerified } from '../../lib/profileCompletion'
 
 const PROVIDER_LABEL: Record<string, string> = {
   'google.com': 'Google',
@@ -51,7 +52,7 @@ function VerifiedMark({ verified }: { verified: boolean }) {
       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
         verified ? 'bg-emerald-500' : 'bg-red-500'
       }`}
-      title={verified ? 'Email verified' : 'Email not verified'}
+      title={verified ? 'Verified' : 'Profile incomplete or email not verified'}
     >
       {verified ? (
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-2.5 w-2.5 text-white">
@@ -69,7 +70,7 @@ function VerifiedMark({ verified }: { verified: boolean }) {
 }
 
 function NicknameHeading() {
-  const { user, refreshUser } = useAuth()
+  const { user, userDoc, refreshUser } = useAuth()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(user?.displayName ?? '')
   const [saving, setSaving] = useState(false)
@@ -136,7 +137,7 @@ function NicknameHeading() {
   return (
     <div className="flex items-center gap-2">
       <h1 className="text-2xl font-semibold">{user.displayName || '—'}</h1>
-      <VerifiedMark verified={user.emailVerified} />
+      <VerifiedMark verified={isFullyVerified(user, userDoc)} />
       <button
         type="button"
         onClick={() => setEditing(true)}

@@ -147,13 +147,19 @@ export function TaskedGame() {
 
   useEffect(() => {
     if (!user || !entrant || !allDone || entrant.allTasksCompletedAt || awarding.current) return
+    // hasTaskedCoupon is a defense-in-depth check, not the real guarantee
+    // — a still-loading `myCoupons` snapshot could momentarily read false
+    // right after another tab's award lands. The actual one-coupon-ever
+    // guarantee is the couponAwarded lock enforced atomically inside
+    // awardTindaCoupon's transaction (lib/tindaCoupons.ts).
+    if (hasTaskedCoupon) return
     awarding.current = true
     void (async () => {
       await completeAllTasksIfReady(user.uid, entrant)
       await recordTaskedWin(user.uid).catch(() => {})
       await awardTindaCoupon(user.uid, 'tasked').catch(() => {})
     })()
-  }, [user, entrant, allDone])
+  }, [user, entrant, allDone, hasTaskedCoupon])
 
   if (!user || entrantLoading || !entrant) {
     return (

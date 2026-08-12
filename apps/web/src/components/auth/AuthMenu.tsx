@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { auth } from '../../lib/firebase'
 import { getInitials } from '../../lib/initials'
 import { subscribeToMyCoupons } from '../../lib/tindaCoupons'
+import { isFullyVerified, isProfileComplete } from '../../lib/profileCompletion'
 
 function VerificationBadge({ verified }: { verified: boolean }) {
   return (
@@ -43,7 +44,8 @@ function UserMenu() {
 
   if (!user) return null
 
-  const verified = user.emailVerified
+  const profileComplete = isProfileComplete(user, userDoc)
+  const verified = isFullyVerified(user, userDoc)
 
   const handleResend = async () => {
     if (!auth?.currentUser) return
@@ -84,7 +86,24 @@ function UserMenu() {
             className="fixed inset-0 z-10 cursor-default"
           />
           <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl bg-[#0d2fa0] py-1 text-sm shadow-xl">
-            {!verified && (
+            {!profileComplete && (
+              <div className="border-b border-white/10 px-4 py-2.5">
+                <p className="flex items-center gap-1.5 font-medium text-red-300">
+                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold leading-none text-white">
+                    !
+                  </span>
+                  Profile incomplete
+                </p>
+                <Link
+                  to="/profile"
+                  onClick={() => setOpen(false)}
+                  className="mt-1 inline-block text-xs font-medium text-white/70 underline hover:text-white"
+                >
+                  Complete my profile
+                </Link>
+              </div>
+            )}
+            {profileComplete && !user.emailVerified && (
               <div className="border-b border-white/10 px-4 py-2.5">
                 <p className="flex items-center gap-1.5 font-medium text-red-300">
                   <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold leading-none text-white">

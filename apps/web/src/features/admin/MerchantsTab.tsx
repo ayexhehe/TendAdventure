@@ -14,35 +14,6 @@ import {
 import { subscribeToGameSettings, saveGameSettings } from '../../lib/gameSettings'
 import { Pagination } from '../../components/Pagination'
 
-function Switch({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: () => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      disabled={disabled}
-      className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-50 ${
-        checked ? 'bg-emerald-500' : 'bg-white/15'
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition ${
-          checked ? 'left-5.5' : 'left-0.5'
-        }`}
-      />
-    </button>
-  )
-}
-
 const inputClass =
   'rounded-md bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40'
 const labelClass = 'text-xs font-medium text-white/50'
@@ -93,8 +64,10 @@ export function MerchantsTab() {
   const [error, setError] = useState<string | null>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const productRef = useRef<HTMLTextAreaElement>(null)
-  const [merchantsSectionEnabled, setMerchantsSectionEnabled] = useState(true)
-  const [savingSectionToggle, setSavingSectionToggle] = useState(false)
+  const [maxMerchants, setMaxMerchants] = useState('0')
+  const [savingMaxMerchants, setSavingMaxMerchants] = useState(false)
+  const [maxMerchantsSaved, setMaxMerchantsSaved] = useState(false)
+  const [maxMerchantsLoaded, setMaxMerchantsLoaded] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [migrationResult, setMigrationResult] = useState<string | null>(null)
 
@@ -105,7 +78,13 @@ export function MerchantsTab() {
   useEffect(() => subscribeToMerchantCodes(setMerchantCodes), [])
   useEffect(() => subscribeToMerchantQuestions(setMerchantQuestions), [])
   useEffect(
-    () => subscribeToGameSettings((s) => setMerchantsSectionEnabled(s?.merchantsSectionEnabled ?? true)),
+    () =>
+      subscribeToGameSettings((s) => {
+        if (maxMerchantsLoaded) return
+        setMaxMerchants(String(s?.merchantSlotsTotal ?? 0))
+        setMaxMerchantsLoaded(true)
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
 
@@ -126,14 +105,16 @@ export function MerchantsTab() {
     }
   }
 
-  const handleToggleMerchantsSection = async () => {
-    const next = !merchantsSectionEnabled
-    setSavingSectionToggle(true)
-    setMerchantsSectionEnabled(next)
+  const handleSaveMaxMerchants = async () => {
+    const next = Math.max(0, Math.floor(Number(maxMerchants)) || 0)
+    setMaxMerchantsSaved(false)
+    setSavingMaxMerchants(true)
     try {
-      await saveGameSettings({ merchantsSectionEnabled: next })
+      await saveGameSettings({ merchantSlotsTotal: next })
+      setMaxMerchants(String(next))
+      setMaxMerchantsSaved(true)
     } finally {
-      setSavingSectionToggle(false)
+      setSavingMaxMerchants(false)
     }
   }
 
@@ -285,17 +266,31 @@ export function MerchantsTab() {
       <section className="rounded-2xl bg-white/5 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium">Show "Know the Tindahans" on landing page</p>
+            <p className="text-sm font-medium">Maximum number of merchants</p>
             <p className="text-xs text-white/50">
-              When off, the landing page hides merchant highlights and instead shows a single
-              "Be one of the Tindahan!" card inviting sellers to join.
+              Caps how many Tindahans can be listed in total (0 = unlimited). The "Be one of the
+              Tindahan!" join CTA shows on the home and Merchants pages automatically, for as long
+              as this number hasn't been reached.
             </p>
           </div>
-          <Switch
-            checked={merchantsSectionEnabled}
-            onChange={() => void handleToggleMerchantsSection()}
-            disabled={savingSectionToggle}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              value={maxMerchants}
+              onChange={(e) => setMaxMerchants(e.target.value)}
+              className={`${inputClass} w-24`}
+            />
+            <button
+              type="button"
+              onClick={() => void handleSaveMaxMerchants()}
+              disabled={savingMaxMerchants}
+              className="rounded-full bg-white px-5 py-2 text-xs font-medium text-[#113DCB] hover:bg-white/90 disabled:opacity-50"
+            >
+              {savingMaxMerchants ? 'Saving…' : 'Save'}
+            </button>
+            {maxMerchantsSaved && <span className="text-xs text-emerald-300">Saved.</span>}
+          </div>
         </div>
       </section>
 

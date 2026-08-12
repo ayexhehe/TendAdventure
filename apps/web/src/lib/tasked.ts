@@ -1,14 +1,4 @@
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from 'firebase/firestore'
+import { collection, doc, getDoc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import type { TaskedEntrantDoc, TaskedSlugDoc } from '@tindadventure/shared'
 import { db } from './firebase'
 
@@ -29,6 +19,7 @@ function blankEntrant(uid: string, slug: string): TaskedEntrantDoc {
     task3MessageId: null,
     task3CompletedAt: null,
     allTasksCompletedAt: null,
+    couponAwarded: false,
   }
 }
 
@@ -67,9 +58,15 @@ export async function resolveSlug(slug: string): Promise<TaskedSlugDoc | null> {
   return snapshot.exists() ? (snapshot.data() as TaskedSlugDoc) : null
 }
 
+// `visitorId` is the clicking visitor's own Firebase Auth uid — logging a
+// click requires being signed in specifically so this can't be faked by
+// scripting anonymous writes. The doc id is deterministic
+// (`${ownerUid}_${visitorId}`) so the same real account can only ever
+// count once toward the same owner's target — a repeat call just collides
+// with the existing doc, which the rules never allow to be updated.
 export async function logInviteClick(ownerUid: string, visitorId: string) {
   if (!db) return
-  await addDoc(collection(db, 'taskedClickLogs'), {
+  await setDoc(doc(db, 'taskedClickLogs', `${ownerUid}_${visitorId}`), {
     ownerUid,
     visitorId,
     clickedAt: Date.now(),

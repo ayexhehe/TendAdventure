@@ -8,16 +8,6 @@ import { subscribeToAbout } from '../../lib/about'
 import { ImageWithSkeleton } from '../../components/skeleton/ImageWithSkeleton'
 import { SpotlightSkeleton } from '../../components/skeleton/Skeletons'
 
-function getVisitorId(): string {
-  const key = 'ta_visitor_id'
-  let id = localStorage.getItem(key)
-  if (!id) {
-    id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
-    localStorage.setItem(key, id)
-  }
-  return id
-}
-
 export function InvitePage() {
   const { slug } = useParams<{ slug: string }>()
   const { user, loading: authLoading } = useAuth()
@@ -46,17 +36,21 @@ export function InvitePage() {
     }
   }, [slug])
 
-  // Fire-and-forget: never blocks rendering the invite content.
+  // Fire-and-forget: never blocks rendering the invite content. Only
+  // counts once the visitor is actually signed in — a click only counts
+  // toward Task 1 if it's traceable to a real account, not just a
+  // localStorage id anyone could script up. Anonymous visitors can still
+  // view the invite fine; they just don't get logged until they sign in.
   useEffect(() => {
-    if (authLoading || !ownerUid || clickLogged.current) return
-    if (user && user.uid === ownerUid) return // don't count the owner's own visit
+    if (authLoading || !ownerUid || !user || clickLogged.current) return
+    if (user.uid === ownerUid) return // don't count the owner's own visit
 
     const seenKey = `ta_clicked_${ownerUid}`
     if (localStorage.getItem(seenKey)) return
 
     clickLogged.current = true
     localStorage.setItem(seenKey, '1')
-    void logInviteClick(ownerUid, getVisitorId())
+    void logInviteClick(ownerUid, user.uid)
   }, [ownerUid, user, authLoading])
 
   useEffect(() => subscribeToAbout(setAbout), [])

@@ -30,6 +30,7 @@ export function CalendarTab() {
   const [description, setDescription] = useState('')
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+  const [highlighted, setHighlighted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -74,6 +75,7 @@ export function CalendarTab() {
     setLocation('')
     setDescription('')
     setPhotoFiles([])
+    setHighlighted(false)
     if (descriptionRef.current) descriptionRef.current.style.height = 'auto'
   }
 
@@ -87,6 +89,7 @@ export function CalendarTab() {
     setLocation(a.location)
     setDescription(a.description)
     setPhotoFiles([])
+    setHighlighted(a.highlighted ?? false)
     setError(null)
   }
 
@@ -138,7 +141,7 @@ export function CalendarTab() {
       const imageURLs = photoFiles.length
         ? await uploadActivityImages(photoFiles)
         : existingImageURLs
-      const payload = { title, date, committeeHead, location, description, imageURLs }
+      const payload = { title, date, committeeHead, location, description, imageURLs, highlighted }
       if (editingId) {
         await updateActivity(editingId, { ...payload, createdAt: editingCreatedAt ?? Date.now() })
       } else {
@@ -171,7 +174,10 @@ export function CalendarTab() {
               {activities.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE).map((a) => (
                 <tr key={a.id} className="border-t border-white/10">
                   <td className="px-6 py-3 text-white/70">{formatDate(a.date)}</td>
-                  <td className="px-6 py-3 font-medium">{a.title}</td>
+                  <td className="px-6 py-3 font-medium">
+                    {a.highlighted && <span title="Highlighted">⭐ </span>}
+                    {a.title}
+                  </td>
                   <td className="px-6 py-3 text-white/70">{a.committeeHead || '—'}</td>
                   <td className="px-6 py-3 text-white/70">{a.location || '—'}</td>
                   <td className="px-6 py-3">
@@ -343,6 +349,17 @@ export function CalendarTab() {
               </div>
             )}
           </div>
+          <label className="flex items-center gap-2 rounded-lg bg-white/5 px-3.5 py-3 text-sm text-white md:col-span-2">
+            <input
+              type="checkbox"
+              checked={highlighted}
+              onChange={(e) => setHighlighted(e.target.checked)}
+            />
+            <span>
+              ⭐ Highlight this activity — pins it to the top of "Upcoming" on the Calendar and
+              home pages, ahead of other activities regardless of date.
+            </span>
+          </label>
         </div>
 
         {error && <p className="mt-3 text-sm text-red-300">{error}</p>}

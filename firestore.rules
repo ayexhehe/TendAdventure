@@ -294,16 +294,74 @@ service cloud.firestore {
         && request.auth.uid == uid
         && request.resource.data.uid == uid;
 
-      // A player advances their own 3 tasks; the personal share slug is
-      // fixed at creation and can't be swapped out from under them.
+      // taSKed is the only game left that decides a win client-side (Quiz
+      // Bowl and Voting both moved server-side), so unlike those, each
+      // task's completion has to be locked down field-by-field here
+      // instead of trusting a broad self-update — otherwise a player could
+      // just set task1CompletedAt (etc.) to anything directly, skipping
+      // the actual task entirely. Each rule below only allows moving that
+      // one task from not-completed to completed, together with its
+      // supporting field, and nothing else.
+
+      // Task 1: only once the reported click count actually meets the
+      // real target (3) — doesn't verify the underlying clicks are
+      // genuine (see taskedClickLogs below for that), just that this
+      // specific write can't claim completion without at least reporting
+      // a plausible count.
       allow update: if request.auth != null
         && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && request.resource.data.personalShareSlug == resource.data.personalShareSlug;
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['task1ClickCount', 'task1CompletedAt'])
+        && resource.data.task1CompletedAt == null
+        && request.resource.data.task1CompletedAt is number
+        && request.resource.data.task1ClickCount >= 3;
+
+      // Task 2: only once, with a real (non-empty) link recorded.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['task2PostLink', 'task2CompletedAt'])
+        && resource.data.task2CompletedAt == null
+        && request.resource.data.task2CompletedAt is number
+        && request.resource.data.task2PostLink is string
+        && request.resource.data.task2PostLink.size() > 0;
+
+      // Task 3: only once, referencing a real messageWall doc id.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['task3MessageId', 'task3CompletedAt'])
+        && resource.data.task3CompletedAt == null
+        && request.resource.data.task3CompletedAt is number
+        && request.resource.data.task3MessageId is string
+        && request.resource.data.task3MessageId.size() > 0;
+
+      // All three done: only once every individual task is already
+      // recorded as completed, and only this one field moves.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allTasksCompletedAt'])
+        && resource.data.allTasksCompletedAt == null
+        && request.resource.data.allTasksCompletedAt is number
+        && resource.data.task1CompletedAt is number
+        && resource.data.task2CompletedAt is number
+        && resource.data.task3CompletedAt is number;
+
+      // Coupon-award idempotency lock — flipped atomically alongside
+      // creating the tindaCoupons doc, inside the same client transaction
+      // (see lib/tindaCoupons.ts's awardTindaCoupon). Never reversible by
+      // a player; only an admin coupon delete releases it (below). Reads
+      // the current value via get(key, default) rather than dot-access —
+      // entrants created before this field existed have no couponAwarded
+      // key at all, and dot-accessing a missing map key errors out the
+      // whole rule (denying the request) instead of just being falsy.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['couponAwarded'])
+        && resource.data.get('couponAwarded', false) == false
+        && request.resource.data.couponAwarded == true;
 
       // Admins can reset any player's progress (the "reset all tasks"
-      // admin action) — the personal share slug still can't change, so a
-      // reset player's existing invite link keeps working.
+      // admin action), or release the coupon lock after deleting an
+      // erroneous coupon — the personal share slug still can't change, so
+      // a reset player's existing invite link keeps working.
       allow update: if isAdminEmail()
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.personalShareSlug == resource.data.personalShareSlug;
@@ -318,14 +376,21 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // One doc per logged invite-link click. Writable by anyone (most
-    // clickers are friends who aren't signed in yet) — a deliberate,
-    // low-stakes trust tradeoff consistent with the rest of this app's
-    // game-state writes. Only the owning player (or an admin) can read
-    // their own click log back to compute a count.
+    // One doc per (owner, real visitor account) pair, doc id
+    // `${ownerUid}_${visitorId}` — that deterministic id, combined with
+    // update being fully disallowed, is what makes a click only ever
+    // countable once per real signed-in visitor: a repeat click just
+    // collides with the existing doc. Requiring the clicker to be signed
+    // in (rather than accepting any anonymous write with a client-picked
+    // id) is what stops a player from scripting up "3 friends" out of
+    // thin air. Only the owning player (or an admin) can read their own
+    // click log back to compute a count.
     match /taskedClickLogs/{clickId} {
-      allow create: if request.resource.data.ownerUid is string
-        && request.resource.data.visitorId is string
+      allow create: if request.auth != null
+        && clickId == request.resource.data.ownerUid + '_' + request.auth.uid
+        && request.resource.data.ownerUid is string
+        && request.resource.data.ownerUid != request.auth.uid
+        && request.resource.data.visitorId == request.auth.uid
         && request.resource.data.clickedAt is number;
       allow read: if request.auth != null && request.auth.uid == resource.data.ownerUid;
       allow read: if isAdminEmail();
